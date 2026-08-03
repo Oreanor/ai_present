@@ -291,156 +291,144 @@ export default function ControlPage() {
 
   return (
     <main className="flex h-dvh flex-col overflow-hidden">
-      {/* Верхняя панель: только то, что нужно во время выступления */}
-      <header className="flex shrink-0 items-center gap-2 border-b border-line bg-panel px-3 py-2 text-sm">
-        <button
-          onClick={() => {
-            presentWin.current = openPresentation(deck?.aspect);
-          }}
-          className="rounded bg-accent px-3 py-1.5 text-xs font-semibold text-black"
-          title="Opens the window you share in Teams. Drop the same PDF into it."
-        >
-          Open presentation
-        </button>
-        <button
-          onClick={() => arrange(presentWin.current, deck?.aspect)}
-          className="rounded border border-line px-3 py-1.5 text-xs"
-          title="Places both windows side by side for a single monitor"
-        >
-          Arrange
-        </button>
-
-        <span className="mx-1 h-5 w-px bg-line" />
-
-        {(['presenting', 'qa', 'both'] as Mode[]).map((m) => (
-          <button
-            key={m}
-            onClick={() => void applyMode(m)}
-            disabled={m === 'both' && !plan.bothAvailable}
-            className={`rounded px-3 py-1.5 text-xs capitalize ${
-              s.mode === m && listening ? 'bg-ok font-semibold text-black' : 'border border-line'
-            } disabled:opacity-35`}
-            title={
-              m === 'presenting'
-                ? 'Listen to my microphone only'
-                : m === 'qa'
-                  ? 'Listen to the meeting audio only'
-                  : plan.bothAvailable
-                    ? 'Listen to both at once'
-                    : plan.warnings.join(' ')
-            }
-          >
-            {m === 'qa' ? 'Q&A' : m}
-          </button>
-        ))}
-        {listening ? (
-          <button
-            onClick={() => void stopAll()}
-            className="rounded border border-line px-3 py-1.5 text-xs text-err"
-            title="Stop listening"
-          >
-            Stop
-          </button>
-        ) : null}
-
-        <span className="mx-1 h-5 w-px bg-line" />
-
-        <button
-          onClick={() => runCommand('captions')}
-          className={`rounded px-3 py-1.5 text-xs ${s.captions.visible ? 'border border-line' : 'bg-err font-semibold text-black'}`}
-          title="Hide the captions from the audience instantly. Shortcut: H"
-        >
-          {s.captions.visible ? 'Captions on' : 'Captions HIDDEN'}
-        </button>
-        <button
-          onClick={() => runCommand('lang')}
-          disabled={s.profile.presenterMode.kind !== 'pin'}
-          className="rounded border border-line px-3 py-1.5 text-xs font-bold disabled:opacity-40"
-          title="Which language I am speaking right now. Press before you switch. Shortcut: L"
-        >
-          {modeLabel(s.profile.presenterMode)}
-        </button>
-
-        <span className="ml-auto font-mono text-xs text-dim" title="Time since this window was opened">
-          {fmt(elapsed)}
-        </span>
-
-        <div className="relative">
-          <button
-            onClick={() => setMenu((v) => !v)}
-            className="rounded border border-line px-2.5 py-1.5 text-xs"
-            title="Everything you do not need mid-talk"
-          >
-            ⋯
-          </button>
-          {menu ? <Menu onClose={() => setMenu(false)} state={s} deck={deck} demo={demo} setDemo={setDemo} startChannel={startChannel} stopChannel={stopChannel} used={used} plan={plan} openWizard={() => setWizard(true)} /> : null}
-        </div>
-      </header>
-
-      {s.toast ? (
-        <div
-          className={`shrink-0 px-3 py-1.5 text-xs ${
-            s.toast.kind === 'error'
-              ? 'bg-err/20 text-err'
-              : s.toast.kind === 'warn'
-                ? 'bg-warn/15 text-warn'
-                : 'bg-white/5 text-dim'
-          }`}
-        >
-          {s.toast.text}
-        </div>
-      ) : null}
-
-      {/* Слайд слева, переписка справа */}
+      {/* Верхней панели нет: она забирала высоту у слайда ради кнопок,
+          которыми пользуются раз за встречу. Управление — справа над чатом. */}
       <div className="flex min-h-0 flex-1">
-        <div className="flex min-w-0 flex-[3] flex-col border-r border-line">
-          <div ref={stageRef} className="relative min-h-0 flex-1 bg-black">
-            {renderer && deck ? (
-              <>
-                <SlideCanvas
-                  renderer={renderer}
-                  index={s.slideIndex}
-                  aspect={deck.aspect}
-                  areaW={stage.w}
-                  areaH={stage.h}
-                  onRect={setRect}
-                />
-                <AnnotationLayer shapes={shapes} rect={rect} interactive={false} />
-              </>
-            ) : (
-              <DeckDrop onFile={openFile} />
-            )}
-          </div>
+        {/* Слайд во всю высоту. Навигация — прозрачными зонами по краям,
+            чтобы не отрезать полосу снизу. */}
+        <div ref={stageRef} className="relative min-h-0 flex-1 bg-black">
+          {renderer && deck ? (
+            <>
+              <SlideCanvas
+                renderer={renderer}
+                index={s.slideIndex}
+                aspect={deck.aspect}
+                areaW={stage.w}
+                areaH={stage.h}
+                onRect={setRect}
+              />
+              <AnnotationLayer shapes={shapes} rect={rect} interactive={false} />
+              <EdgeNav side="left" onClick={() => s.move(-1)} disabled={s.slideIndex === 0} />
+              <EdgeNav side="right" onClick={() => s.move(1)} disabled={s.slideIndex >= s.slideCount - 1} />
+              <div className="pointer-events-none absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full bg-black/60 px-2.5 py-0.5 font-mono text-[11px] text-dim">
+                {s.slideIndex + 1} / {s.slideCount}
+              </div>
+            </>
+          ) : (
+            <DeckDrop onFile={openFile} />
+          )}
 
-          <div className="flex shrink-0 items-center justify-center gap-3 border-t border-line px-3 py-1.5">
-            <button onClick={() => s.move(-1)} className="rounded border border-line px-3 py-0.5 text-xs" title="←">
-              ←
-            </button>
-            <span className="font-mono text-xs text-dim">
-              {s.slideCount ? s.slideIndex + 1 : 0} / {s.slideCount}
-            </span>
-            <button onClick={() => s.move(1)} className="rounded border border-line px-3 py-0.5 text-xs" title="→">
-              →
-            </button>
-          </div>
+          {s.toast ? (
+            <div
+              className={`absolute inset-x-0 top-0 px-3 py-1.5 text-xs ${
+                s.toast.kind === 'error'
+                  ? 'bg-err/85 text-black'
+                  : s.toast.kind === 'warn'
+                    ? 'bg-warn/85 text-black'
+                    : 'bg-black/75 text-fg'
+              }`}
+            >
+              {s.toast.text}
+            </div>
+          ) : null}
         </div>
 
-        <aside className="flex min-h-0 w-[26%] min-w-[270px] flex-col">
-          <div className="flex shrink-0 items-center gap-2 border-b border-line px-3 py-2">
+        <aside className="flex min-h-0 w-[26%] min-w-[290px] flex-col border-l border-line bg-panel/40">
+          {/* Управление — здесь, а не сверху */}
+          <div className="shrink-0 border-b border-line p-2">
+            <div className="flex gap-1">
+              {(['presenting', 'qa', 'both'] as Mode[]).map((m) => (
+                <button
+                  key={m}
+                  onClick={() => void applyMode(m)}
+                  disabled={m === 'both' && !plan.bothAvailable}
+                  className={`flex-1 rounded px-2 py-1.5 text-xs capitalize ${
+                    s.mode === m && listening ? 'bg-ok font-semibold text-black' : 'border border-line'
+                  } disabled:opacity-35`}
+                  title={
+                    m === 'presenting'
+                      ? 'Listen to my microphone only'
+                      : m === 'qa'
+                        ? 'Listen to the meeting audio only'
+                        : plan.bothAvailable
+                          ? 'Listen to both at once'
+                          : plan.warnings.join(' ')
+                  }
+                >
+                  {m === 'qa' ? 'Q&A' : m}
+                </button>
+              ))}
+            </div>
+
+            <div className="mt-1 flex gap-1">
+              <button
+                onClick={() => runCommand('captions')}
+                className={`flex-1 rounded px-2 py-1.5 text-xs ${
+                  s.captions.visible ? 'border border-line' : 'bg-err font-semibold text-black'
+                }`}
+                title="Hide the captions from the audience instantly. Shortcut: H"
+              >
+                {s.captions.visible ? 'Captions on' : 'HIDDEN'}
+              </button>
+              <button
+                onClick={() => runCommand('lang')}
+                disabled={s.profile.presenterMode.kind !== 'pin'}
+                className="rounded border border-line px-2.5 py-1.5 text-xs font-bold disabled:opacity-40"
+                title="Which language I am speaking right now. Press before you switch. Shortcut: L"
+              >
+                {modeLabel(s.profile.presenterMode)}
+              </button>
+              {listening ? (
+                <button
+                  onClick={() => void stopAll()}
+                  className="rounded border border-line px-2.5 py-1.5 text-xs text-err"
+                  title="Stop listening"
+                >
+                  Stop
+                </button>
+              ) : null}
+              <div className="relative">
+                <button
+                  onClick={() => setMenu((v) => !v)}
+                  className="rounded border border-line px-2.5 py-1.5 text-xs"
+                  title="Everything you do not need mid-talk"
+                >
+                  ⋯
+                </button>
+                {menu ? (
+                  <Menu
+                    onClose={() => setMenu(false)}
+                    state={s}
+                    deck={deck}
+                    demo={demo}
+                    setDemo={setDemo}
+                    startChannel={startChannel}
+                    stopChannel={stopChannel}
+                    used={used}
+                    plan={plan}
+                    openWizard={() => setWizard(true)}
+                    openPresent={() => {
+                      presentWin.current = openPresentation(deck?.aspect);
+                    }}
+                    arrangeWindows={() => arrange(presentWin.current, deck?.aspect)}
+                  />
+                ) : null}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex shrink-0 items-center gap-2 border-b border-line px-2 py-1.5">
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search…"
+              placeholder="Search the conversation…"
               className="min-w-0 flex-1 rounded border border-line bg-ink px-2 py-1 text-xs outline-none focus:border-accent"
             />
-            <button
-              onClick={() => exportAll(s.entries, s.profile)}
-              className="rounded border border-line px-2 py-1 text-xs"
-              title="Save both transcripts as Markdown. Shortcut: E"
-            >
-              Export
-            </button>
+            <span className="font-mono text-[11px] text-dim" title="Time since this window was opened">
+              {fmt(elapsed)}
+            </span>
           </div>
+
           <ChatLog
             entries={s.entries}
             profile={s.profile}
@@ -471,6 +459,36 @@ export default function ControlPage() {
   );
 }
 
+/** Прозрачная зона навигации по краю слайда. Отдельной полосы под
+ *  слайдом нет — она отбирала высоту у самого слайда. */
+function EdgeNav({ side, onClick, disabled }: { side: 'left' | 'right'; onClick: () => void; disabled: boolean }) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      title={side === 'left' ? 'Previous slide (←)' : 'Next slide (→)'}
+      className={`group absolute inset-y-0 ${side === 'left' ? 'left-0' : 'right-0'} w-16 disabled:pointer-events-none`}
+    >
+      <span
+        className={`absolute inset-0 transition-opacity duration-150 ${disabled ? 'opacity-0' : 'opacity-0 group-hover:opacity-100'}`}
+        style={{
+          background:
+            side === 'left'
+              ? 'linear-gradient(90deg, rgba(0,0,0,.55), transparent)'
+              : 'linear-gradient(270deg, rgba(0,0,0,.55), transparent)',
+        }}
+      />
+      <span
+        className={`absolute top-1/2 -translate-y-1/2 text-3xl leading-none transition-opacity ${
+          side === 'left' ? 'left-4' : 'right-4'
+        } ${disabled ? 'opacity-0' : 'opacity-25 group-hover:opacity-100'}`}
+      >
+        {side === 'left' ? '‹' : '›'}
+      </span>
+    </button>
+  );
+}
+
 /** Всё, что не нужно во время выступления. */
 function Menu({
   onClose,
@@ -483,6 +501,8 @@ function Menu({
   used,
   plan,
   openWizard,
+  openPresent,
+  arrangeWindows,
 }: {
   onClose: () => void;
   state: ReturnType<typeof useStore.getState>;
@@ -494,6 +514,8 @@ function Menu({
   used: number;
   plan: ReturnType<typeof planChannels>;
   openWizard: () => void;
+  openPresent: () => void;
+  arrangeWindows: () => void;
 }) {
   const roomy = sideRoom(16 / 9, deck?.aspect ?? 16 / 9) >= SIDE_MIN_FRACTION;
   const item = 'w-full rounded px-2 py-1.5 text-left text-xs hover:bg-white/5';
@@ -502,6 +524,15 @@ function Menu({
     <>
       <div className="fixed inset-0 z-10" onClick={onClose} />
       <div className="absolute right-0 top-9 z-20 w-72 rounded-lg border border-line bg-panel p-2 shadow-2xl">
+        <Group label="The window you share in Teams">
+          <button className={item} onClick={openPresent}>
+            Open the presentation window
+          </button>
+          <button className={item} onClick={arrangeWindows}>
+            Place both windows side by side
+          </button>
+        </Group>
+
         <Group label="Caption layout — where subtitles sit in the shared window">
           <div className="flex gap-1">
             {(['reserve', 'overlay', 'side'] as const).map((l) => (
