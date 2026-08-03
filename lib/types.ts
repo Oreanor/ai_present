@@ -77,7 +77,15 @@ export type Annotations = Record<number, Shape[]>;
 
 // --- Состояние сессии -----------------------------------------------------
 
-export type CaptionLayout = 'reserve' | 'overlay';
+/**
+ * Куда девать субтитры относительно слайда.
+ *   reserve — полоса внизу, слайд ужимается в остаток (по умолчанию);
+ *   overlay — полоса поверх слайда;
+ *   side    — колонка справа. Осмысленна только когда слайд уже окна:
+ *             4:3 внутри 16:9 оставляет ровно четверть ширины пустой,
+ *             и это место всё равно внутри расшаренного окна.
+ */
+export type CaptionLayout = 'reserve' | 'overlay' | 'side';
 
 export type Mode = 'presenting' | 'qa' | 'both';
 
@@ -105,4 +113,10 @@ export type PresentationState = {
   status: ChannelStatus;
   /** Текущая строка субтитров, уже на captionLang. */
   captionLine: { text: string; final: boolean; speaker: Speaker } | null;
+  /**
+   * История субтитров для боковой колонки — ТОЛЬКО на captionLang.
+   * Приватный лог сюда не попадает никогда: ни оригиналов, ни второго
+   * языка, ни правок. Это окно расшарено.
+   */
+  captionHistory: { id: string; text: string; speaker: Speaker }[];
 };

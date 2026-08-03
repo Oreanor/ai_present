@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AnnotationLayer } from '@/components/AnnotationLayer';
+import { SIDE_MIN_FRACTION, sideRoom } from '@/components/CaptionColumn';
 import { LogView } from '@/components/LogView';
 import { QualityPanel } from '@/components/QualityPanel';
 import { SlideCanvas, type SlideRect } from '@/components/SlideCanvas';
@@ -174,6 +175,16 @@ export default function ControlPage() {
       setRenderer(r);
       st.setDeck(id, d.pageCount, d.aspect);
       for (const w of d.warnings) st.toast_(w.text, 'warn');
+
+      // Узкая колода оставляет пустые поля внутри расшаренного окна.
+      // Предлагаем занять их — сам пользователь об этом не догадается.
+      const room = sideRoom(16 / 9, d.aspect);
+      if (room >= SIDE_MIN_FRACTION && st.captions.layout !== 'side') {
+        st.toast_(
+          `This deck leaves ${Math.round(room * 100)}% of the shared window empty. ` +
+            'The "side" caption layout puts a rolling transcript there.',
+        );
+      }
 
       // Словарь терминов из текста слайдов (§6б).
       const texts: string[] = [];
@@ -410,12 +421,31 @@ export default function ControlPage() {
           >
             {s.captions.visible ? 'Captions on (H)' : 'Captions hidden'}
           </button>
-          <button
-            onClick={() => s.setCaptions({ layout: s.captions.layout === 'reserve' ? 'overlay' : 'reserve' })}
-            className="rounded border border-line px-2 py-0.5"
-          >
-            {s.captions.layout}
-          </button>
+          {(['reserve', 'overlay', 'side'] as const).map((l) => {
+            // Колонка осмысленна только если слайд уже окна: 4:3 внутри 16:9
+            // оставляет четверть ширины, 16:9 внутри 16:9 — ничего.
+            const roomy = sideRoom(16 / 9, deck?.aspect ?? 16 / 9) >= SIDE_MIN_FRACTION;
+            const disabled = l === 'side' && !roomy;
+            return (
+              <button
+                key={l}
+                onClick={() => s.setCaptions({ layout: l })}
+                disabled={disabled}
+                title={
+                  disabled
+                    ? 'No room for a side column — the slide already fills the window width.'
+                    : l === 'side'
+                      ? 'Use the empty space beside a 4:3 slide for a rolling transcript in the audience language.'
+                      : undefined
+                }
+                className={`rounded px-2 py-0.5 ${
+                  s.captions.layout === l ? 'bg-accent font-semibold text-black' : 'border border-line'
+                } disabled:opacity-35`}
+              >
+                {l}
+              </button>
+            );
+          })}
         </div>
 
         <QualityPanel entries={s.entries} profile={s.profile} onCycleLang={() => runCommand('lang')} />

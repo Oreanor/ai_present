@@ -330,6 +330,20 @@ export const useStore = create<State>((set, get) => ({
 
   snapshot() {
     const s = get();
+    const cl = s.profile.captionLang;
+
+    // История для боковой колонки. Собирается ровно по тем же правилам,
+    // что и полоса (§9): только captionLang, реплики зала на этом же
+    // языке не дублируются. Ничего приватного сюда не просачивается.
+    const history = s.entries
+      .filter((e) => {
+        if (!e.isFinal || !e.texts[cl]) return false;
+        if (e.speaker === 'presenter') return true;
+        return s.captions.showAudience && e.origLang !== cl;
+      })
+      .slice(-14)
+      .map((e) => ({ id: e.id, text: e.texts[cl] as string, speaker: e.speaker }));
+
     return {
       slideIndex: s.slideIndex,
       slideCount: s.slideCount,
@@ -341,6 +355,7 @@ export const useStore = create<State>((set, get) => ({
       captionLine: s.captionLine
         ? { text: s.captionLine.text, final: s.captionLine.final, speaker: s.captionLine.speaker }
         : null,
+      captionHistory: history,
     };
   },
 }));

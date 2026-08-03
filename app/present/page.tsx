@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AnnotationLayer } from '@/components/AnnotationLayer';
 import { CaptionBand } from '@/components/CaptionBand';
+import { CaptionColumn, SIDE_MIN_FRACTION, sideRoom } from '@/components/CaptionColumn';
 import { SlideCanvas, type SlideRect } from '@/components/SlideCanvas';
 import { getBus, type BusMessage } from '@/lib/bus';
 import { openDeck, PageRenderer, type Deck } from '@/lib/pdf';
@@ -27,6 +28,7 @@ const EMPTY: PresentationState = {
   shapeColor: 'rgba(250, 204, 21, 0.35)',
   status: 'idle',
   captionLine: null,
+  captionHistory: [],
 };
 
 /**
@@ -118,11 +120,19 @@ export default function PresentPage() {
     setRenderer(new PageRenderer(d));
   };
 
-  const bandHeight = state.captions.visible ? (size.h * state.captions.bandHeight) / 100 : 0;
-  // reserve: слайд вписывается в остаток над полосой. overlay: полоса лежит
-  // поверх, слайд занимает всё окно (§6).
-  const areaH = state.captions.layout === 'reserve' ? size.h - bandHeight : size.h;
   const aspect = deck?.aspect ?? 16 / 9;
+  const windowAspect = size.h > 0 ? size.w / size.h : 16 / 9;
+
+  // Боковая колонка возможна, только если слайд уже окна: иначе места нет.
+  const room = sideRoom(windowAspect, aspect);
+  const sideActive = state.captions.layout === 'side' && room >= SIDE_MIN_FRACTION;
+  const sideWidth = sideActive ? Math.round(size.w * room) : 0;
+
+  const bandHeight = state.captions.visible && !sideActive ? (size.h * state.captions.bandHeight) / 100 : 0;
+  // reserve: слайд вписывается в остаток над полосой. overlay: полоса лежит
+  // поверх, слайд занимает всё окно (§6). side: полосы нет вовсе.
+  const areaH = state.captions.layout === 'reserve' ? size.h - bandHeight : size.h;
+  const areaW = size.w - sideWidth;
 
   const addShape = (s: Omit<Shape, 'id'>) =>
     bus.current.send({ type: 'shape:add', payload: { slideIndex: state.slideIndex, shape: { ...s, id: uid('s') } } });
@@ -130,12 +140,12 @@ export default function PresentPage() {
   return (
     <main ref={rootRef} className={`relative h-dvh w-dvw overflow-hidden bg-black ${idle ? 'idle-cursor' : ''}`}>
       {renderer && deck ? (
-        <div className="absolute inset-0" style={{ height: areaH }}>
+        <div className="absolute left-0 top-0" style={{ width: areaW, height: areaH }}>
           <SlideCanvas
             renderer={renderer}
             index={Math.min(state.slideIndex, deck.pageCount - 1)}
             aspect={aspect}
-            areaW={size.w}
+            areaW={areaW}
             areaH={areaH}
             onRect={setRect}
           />
@@ -154,11 +164,20 @@ export default function PresentPage() {
         <DropDeck onFile={openLocal} waiting={state.slideCount > 0} />
       )}
 
-      <CaptionBand
-        line={state.captions.visible ? state.captionLine : null}
-        settings={state.captions}
-        height={(size.h * state.captions.bandHeight) / 100}
-      />
+      {sideActive ? (
+        <CaptionColumn
+          history={state.captionHistory}
+          live={state.captionLine}
+          settings={state.captions}
+          width={sideWidth}
+        />
+      ) : (
+        <CaptionBand
+          line={state.captions.visible ? state.captionLine : null}
+          settings={state.captions}
+          height={(size.h * state.captions.bandHeight) / 100}
+        />
+      )}
 
       <StatusDot status={state.status} />
     </main>
