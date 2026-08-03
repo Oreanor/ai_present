@@ -12,9 +12,9 @@ import type { Lang } from '@/lib/types';
 /**
  * Всё, чем не пользуются во время выступления.
  *
- * Здесь осталось только то, чему нет альтернативы: расстановку окон
- * делают мышью, компоновку субтитров приложение выбирает само по форме
- * колоды, а демо-режим — инструмент разработки, а не функция продукта.
+ * Здесь осталось только то, чему нет альтернативы: окно показа не нужно —
+ * шарится это же окно целиком, компоновку субтитров приложение выбирает
+ * само по форме колоды, а демо — инструмент разработки, не функция.
  */
 export function ControlMenu({
   onClose,
@@ -22,7 +22,6 @@ export function ControlMenu({
   uiLang,
   used,
   geminiInUse,
-  onOpenPresentation,
   onOpenWizard,
 }: {
   onClose: () => void;
@@ -30,7 +29,6 @@ export function ControlMenu({
   uiLang: UiLang;
   used: number;
   geminiInUse: boolean;
-  onOpenPresentation: () => void;
   onOpenWizard: () => void;
 }) {
   const state = useStore();
@@ -40,12 +38,6 @@ export function ControlMenu({
     <>
       <div className="fixed inset-0 z-10" onClick={onClose} />
       <div className="menu">
-        <Group label={t('shareWindow')}>
-          <button className="menu-item" onClick={onOpenPresentation}>
-            {t('openPresentation')}
-          </button>
-        </Group>
-
         <PackList />
 
         <Group label={t('appearance')}>

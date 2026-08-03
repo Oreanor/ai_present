@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { AnnotationLayer } from '@/components/AnnotationLayer';
 import { ChatLog } from '@/components/ChatLog';
 import { ControlMenu } from '@/components/ControlMenu';
+import { DeckGallery } from '@/components/DeckGallery';
 import { EdgeNav } from '@/components/EdgeNav';
 import { SlideCanvas } from '@/components/SlideCanvas';
 import { KEY_TIERS, SetupWizard } from '@/components/SetupWizard';
@@ -23,7 +24,6 @@ import { loadCap, loadProfile, loadTier } from '@/lib/storage';
 import { hydrateStore, useStore } from '@/lib/store';
 import { LANG_NAMES } from '@/lib/types';
 import { initUiPrefs, useT, useTheme, useUiLang } from '@/lib/ui-prefs';
-import { openPresentation } from '@/lib/windows';
 
 /**
  * Окно ведущего. Раскладка повторяет то, что видит зал, чтобы не надо
@@ -49,10 +49,9 @@ export default function ControlPage() {
   const [menu, setMenu] = useState(false);
 
   const bus = useRef(getBus());
-  const presentWin = useRef<Window | null>(null);
   const stageRef = useRef<HTMLDivElement>(null);
 
-  const { deck, renderer, terms, load } = useDeck();
+  const { deck, renderer, terms, recent, load, openRecent, forget } = useDeck();
   const channels = useChannels(terms);
   const stage = useElementSize(stageRef, [ready, wizard, deck]);
 
@@ -69,11 +68,18 @@ export default function ControlPage() {
   // настроек перезапускало эффект, тот заново вычислял wizard из наличия
   // профиля и немедленно закрывал их обратно.
   useEffect(() => {
-    hydrateStore();
-    initUiPrefs();
-    setWizard(loadProfile() === null);
+    // Ни один шаг подготовки не должен мешать окну открыться: если что-то
+    // из хранилища не читается, приложение обязано запуститься на
+    // умолчаниях и сказать об этом, а не висеть на «Loading…».
+    try {
+      hydrateStore();
+      initUiPrefs();
+      setWizard(loadProfile() === null);
+      applyQuotaLimits();
+    } catch (e) {
+      console.error('init failed', e);
+    }
     void useStore.getState().restoreLog();
-    applyQuotaLimits();
     setReady(true);
     const off = quota.subscribe(setUsed);
     return () => {
@@ -85,6 +91,20 @@ export default function ControlPage() {
     const id = setInterval(() => setElapsed((v) => v + 1), 1000);
     return () => clearInterval(id);
   }, []);
+
+  /**
+   * Открыть колоду. Окно показа само НЕ открывается: второе окно нужно
+   * только тем, кто хочет расшарить в Teams один слайд без переписки.
+   * Если делиться нечего скрывать — достаточно этого окна, а лишнее
+   * всплывающее окно только мешает.
+   */
+  const openDeckAndWindow = useCallback(
+    (file?: File, docId?: string) => {
+      if (file) void load(file);
+      else if (docId) void openRecent(docId);
+    },
+    [load, openRecent],
+  );
 
   // --- команды ------------------------------------------------------------
 
@@ -113,7 +133,7 @@ export default function ControlPage() {
           break;
         case 'flag': st.flagLast(); break;
         case 'export': exportAll(st.entries, st.profile); break;
-        case 'fullscreen': presentWin.current?.focus(); break;
+        case 'fullscreen': void document.documentElement.requestFullscreen().catch(() => {}); break;
         case 'shapeKind': st.cycleShapeKind(); break;
         case 'clearSlide': st.clearShapes(false); break;
         case 'clearAll':
@@ -202,7 +222,12 @@ export default function ControlPage() {
               </div>
             </>
           ) : (
-            <DeckDrop onFile={load} label={t('dropPdf')} hint={t('orClick')} />
+            <DeckGallery
+              recent={recent}
+              onOpenFile={openDeckAndWindow}
+              onOpenRecent={(id) => openDeckAndWindow(undefined, id)}
+              onForget={forget}
+            />
           )}
 
           {s.toast ? <Toast kind={s.toast.kind} text={s.toast.text} /> : null}
@@ -268,9 +293,6 @@ export default function ControlPage() {
                     uiLang={uiLang}
                     used={used}
                     geminiInUse={geminiInUse}
-                    onOpenPresentation={() => {
-                      presentWin.current = openPresentation(deck?.aspect);
-                    }}
                     onOpenWizard={() => setWizard(true)}
                   />
                 ) : null}
@@ -340,39 +362,3 @@ function Toast({ kind, text }: { kind: 'info' | 'warn' | 'error'; text: string }
   );
 }
 
-function DeckDrop({ onFile, label, hint }: { onFile: (f: File) => void; label: string; hint: string }) {
-  const [over, setOver] = useState(false);
-  return (
-    <label
-      className={`absolute inset-0 m-4 flex cursor-pointer items-center justify-center rounded-xl border-2 border-dashed text-sm transition-colors ${
-        over ? 'border-accent text-fg' : 'border-line text-dim'
-      }`}
-      onDragOver={(e) => {
-        e.preventDefault();
-        setOver(true);
-      }}
-      onDragLeave={() => setOver(false)}
-      onDrop={(e) => {
-        e.preventDefault();
-        setOver(false);
-        const f = e.dataTransfer.files[0];
-        if (f?.name.toLowerCase().endsWith('.pdf')) void onFile(f);
-      }}
-    >
-      <input
-        type="file"
-        accept="application/pdf,.pdf"
-        className="hidden"
-        onChange={(e) => {
-          const f = e.target.files?.[0];
-          if (f) void onFile(f);
-        }}
-      />
-      <span className="text-center">
-        {label}
-        <br />
-        <span className="text-xs opacity-60">{hint}</span>
-      </span>
-    </label>
-  );
-}

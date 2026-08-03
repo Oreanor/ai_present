@@ -1,5 +1,6 @@
 import { GEMINI } from '../constants';
-import type { Lang, Utterance } from '../types';
+import { claimFloor, holdsFloor } from './floor';
+import type { Lang, Speaker, Utterance } from '../types';
 import { LANG_NAMES } from '../types';
 import { loadApiKey } from '../storage';
 import { blobToBase64, encodeWav, Vad } from './vad';
@@ -153,9 +154,13 @@ export class GeminiChunkProvider implements SpeechProvider {
   private pinned: Lang | null = null;
   private inflight = 0;
   private dayWarned = false;
+  /** Какой канал обслуживаем — нужно арбитру слова. */
+  private channel: Speaker = 'audience';
 
   async start(opts: StartOptions): Promise<void> {
     this.opts = opts;
+    // Микрофон этот провайдер обслуживает только как аварийный дубль.
+    this.channel = opts.source.kind === 'stream' ? 'audience' : 'presenter';
     this.t0 = performance.now();
     this.pinned = opts.sourceLang.length === 1 ? opts.sourceLang[0] : null;
     opts.onStatus('connecting');
@@ -187,7 +192,13 @@ export class GeminiChunkProvider implements SpeechProvider {
     }
 
     this.vad = new Vad({
-      onUtterance: (pcm, sr, dur) => void this.send(pcm, sr, dur),
+      // Слово заявляется в момент речи, а не когда придёт текст: чанк
+      // возвращается через несколько секунд, и решать тогда уже поздно.
+      onSpeech: () => claimFloor(this.channel),
+      holdsFloor: () => holdsFloor(this.channel),
+      onUtterance: (pcm, sr, dur, heldFloor) => {
+        if (heldFloor) void this.send(pcm, sr, dur);
+      },
     });
     await this.vad.start(this.stream);
     opts.onStatus('listening');

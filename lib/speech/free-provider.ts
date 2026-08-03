@@ -1,5 +1,6 @@
 import type { Lang, Utterance } from '../types';
 import { WEB_SPEECH } from '../constants';
+import { claimFloor, holdsFloor } from './floor';
 import { getTranslator, translate } from './translator';
 import { uid, type Capabilities, type SpeechProvider, type StartOptions } from './types';
 
@@ -204,6 +205,10 @@ export class FreeProvider implements SpeechProvider {
     const opts = this.opts;
     if (!opts) return;
 
+    // Пока зал говорит, микрофон молчит: он слышит колонки, а не меня,
+    // и его текст был бы кашей на чужом языке (см. floor.ts).
+    const mine = holdsFloor('presenter');
+
     for (let i = this.emitted; i < e.results.length; i++) {
       const res = e.results[i];
       if (!res.isFinal) break; // дальше только промежуточные
@@ -211,6 +216,8 @@ export class FreeProvider implements SpeechProvider {
       const text = res[0].transcript.trim();
       this.emitted = i + 1;
       if (!text) continue;
+
+      if (!mine) continue;
 
       const id = uid('f');
       opts.onFinal({
@@ -231,7 +238,9 @@ export class FreeProvider implements SpeechProvider {
       if (!e.results[i].isFinal) interim += e.results[i][0].transcript;
     }
     interim = interim.trim();
-    if (interim) {
+    if (interim && mine) {
+      // Речь идёт — слово за микрофоном.
+      claimFloor('presenter');
       opts.onPartial({
         id: 'interim',
         origLang: this.lang,

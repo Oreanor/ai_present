@@ -11,6 +11,7 @@ import { useElementSize } from '@/hooks/useElementSize';
 import { useT } from '@/lib/ui-prefs';
 import { getBus, type BusMessage } from '@/lib/bus';
 import { openDeck, PageRenderer, type Deck } from '@/lib/pdf';
+import { loadDeckFile } from '@/lib/storage';
 import { attachHotkeys, type Command } from '@/lib/hotkeys';
 import { uid } from '@/lib/speech/types';
 import { emptyPresentationState, type PresentationState, type Shape } from '@/lib/types';
@@ -91,11 +92,29 @@ export default function PresentPage() {
     });
   }, []);
 
-  const openLocal = async (file: File) => {
+  /**
+   * Колода забирается из IndexedDB, куда её положило окно Control.
+   * Перетаскивать один и тот же файл во второе окно не нужно; ручная
+   * дроп-зона остаётся на случай, если окно открыли само по себе.
+   */
+  const openLocal = useCallback(async (file: File) => {
     const d = await openDeck(file);
     setDeck(d);
     setRenderer(new PageRenderer(d));
-  };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const pull = async () => {
+      const f = await loadDeckFile();
+      if (f && !cancelled) await openLocal(f);
+    };
+    void pull();
+    return getBus().on((m) => {
+      if (m.type === 'deck:changed') void pull();
+    });
+  }, [openLocal]);
+
 
   const aspect = deck?.aspect ?? 16 / 9;
   const windowAspect = size.h > 0 ? size.w / size.h : 16 / 9;

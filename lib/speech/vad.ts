@@ -5,7 +5,14 @@ import { VAD } from '../constants';
 // речи. Второе стало критичным, когда вопросы зала пошли в субтитры.
 
 export type VadOptions = {
-  onUtterance(pcm: Float32Array, sampleRate: number, durationMs: number): void;
+  /** heldFloor — держал ли этот канал слово, пока шла речь. Решение
+   *  принимается в момент речи: чанк вернётся через несколько секунд,
+   *  когда слово может уже перейти к другому (см. floor.ts). */
+  onUtterance(pcm: Float32Array, sampleRate: number, durationMs: number, heldFloor: boolean): void;
+  /** Речь идёт прямо сейчас. Вызывается часто, пока человек говорит. */
+  onSpeech?(): void;
+  /** Держит ли этот канал слово. Спрашивается во время речи, не после. */
+  holdsFloor?(): boolean;
   onLevel?(rms: number): void;
   /** Порог входа в речь. */
   speechOn?: number;
@@ -33,6 +40,7 @@ export class Vad {
   private preRollSamples = 0;
   private lastLoud = 0;
   private startedAt = 0;
+  private heldFloor = true;
 
   constructor(private opts: VadOptions) {}
 
@@ -72,6 +80,7 @@ export class Vad {
         }
         if (rms > on) {
           this.speaking = true;
+          this.heldFloor = true;
           this.startedAt = now;
           this.lastLoud = now;
           this.buf = [...this.preRoll];
@@ -82,7 +91,13 @@ export class Vad {
       }
 
       this.buf.push(chunk);
-      if (rms > off) this.lastLoud = now;
+      if (rms > off) {
+        this.lastLoud = now;
+        this.opts.onSpeech?.();
+        // Слово теряется, если его перехватил другой канал хоть раз
+        // за время фразы: значит, говорили одновременно и первым был он.
+        if (this.opts.holdsFloor && !this.opts.holdsFloor()) this.heldFloor = false;
+      }
 
       const silent = now - this.lastLoud > silenceMs;
       const tooLong = now - this.startedAt > maxMs;
@@ -91,7 +106,7 @@ export class Vad {
         const flat = this.flatten();
         this.speaking = false;
         this.buf = [];
-        if (durationMs >= minMs) this.opts.onUtterance(flat, ctx.sampleRate, durationMs);
+        if (durationMs >= minMs) this.opts.onUtterance(flat, ctx.sampleRate, durationMs, this.heldFloor);
       }
     };
 
@@ -127,6 +142,7 @@ export class Vad {
     this.preRoll = [];
     this.preRollSamples = 0;
     this.speaking = false;
+    this.heldFloor = true;
   }
 }
 

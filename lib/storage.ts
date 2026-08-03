@@ -121,34 +121,116 @@ function openDb(): Promise<IDBDatabase> {
 }
 
 /**
- * Сам файл колоды. Лежит здесь, чтобы окно показа забрало его само:
- * через BroadcastChannel гонять мегабайты нельзя, а требовать один
- * и тот же файл перетащить дважды — издевательство.
+ * Колоды, которые уже открывали. Лежат здесь по двум причинам: окно показа
+ * забирает файл само (через BroadcastChannel мегабайты не гоняют, а
+ * перетаскивать один файл дважды — издевательство), и повторное открытие
+ * той же колоды на репетициях становится одним кликом.
  */
-export async function saveDeckFile(docId: string, file: File): Promise<void> {
+export type DeckRecord = {
+  docId: string;
+  name: string;
+  pages: number;
+  /** Превью первой страницы, dataURL. Хранится готовым: перерисовывать
+   *  его при каждом показе списка значит грузить pdf.js ради миниатюр. */
+  thumb: string;
+  openedAt: number;
+};
+
+/** Сколько колод помним. Больше — это уже файловый менеджер. */
+const DECK_LIMIT = 8;
+
+const CURRENT = '__current__';
+
+export async function saveDeckFile(
+  docId: string,
+  file: File,
+  meta: { pages: number; thumb: string },
+): Promise<void> {
   if (typeof indexedDB === 'undefined') return;
   const db = await openDb();
   await new Promise<void>((resolve, reject) => {
     const tx = db.transaction(DECK_STORE, 'readwrite');
-    tx.objectStore(DECK_STORE).put({ docId, name: file.name, blob: file }, 'current');
+    const store = tx.objectStore(DECK_STORE);
+    store.put({ docId, name: file.name, blob: file, openedAt: Date.now(), ...meta }, docId);
+    store.put(docId, CURRENT);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+  db.close();
+  await trimDecks();
+}
+
+type StoredDeck = DeckRecord & { blob: Blob };
+
+async function allDecks(): Promise<StoredDeck[]> {
+  if (typeof indexedDB === 'undefined') return [];
+  const db = await openDb();
+  const rows = await new Promise<unknown[]>((resolve, reject) => {
+    const tx = db.transaction(DECK_STORE, 'readonly');
+    const req = tx.objectStore(DECK_STORE).getAll();
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+  db.close();
+  return rows.filter((r): r is StoredDeck => typeof r === 'object' && r !== null && 'docId' in r);
+}
+
+/**
+ * Список для галереи: без самих файлов, только то, что рисуется.
+ *
+ * Записи без пригодного файла отсеиваются СРАЗУ и удаляются. Показать
+ * превью колоды, которая не откроется, — худший вариант: пользователь
+ * жмёт на неё в начале встречи и получает ошибку вместо слайдов.
+ * Хранилище браузера чистится по своим правилам, так что это не теория.
+ */
+export async function listDecks(): Promise<DeckRecord[]> {
+  const rows = await allDecks();
+  const good: DeckRecord[] = [];
+
+  for (const r of rows) {
+    const usable = r.blob instanceof Blob && r.blob.size > 0 && typeof r.thumb === 'string' && r.thumb.length > 0;
+    if (usable) good.push({ docId: r.docId, name: r.name, pages: r.pages, thumb: r.thumb, openedAt: r.openedAt });
+    else void forgetDeck(r.docId);
+  }
+
+  return good.sort((a, b) => b.openedAt - a.openedAt);
+}
+
+export async function loadDeckById(docId: string): Promise<File | null> {
+  const rec = (await allDecks()).find((r) => r.docId === docId);
+  return rec ? new File([rec.blob], rec.name, { type: 'application/pdf' }) : null;
+}
+
+/** Последняя открытая — её подхватывает окно показа при старте. */
+export async function loadDeckFile(): Promise<File | null> {
+  if (typeof indexedDB === 'undefined') return null;
+  const db = await openDb();
+  const id = await new Promise<string | undefined>((resolve, reject) => {
+    const tx = db.transaction(DECK_STORE, 'readonly');
+    const req = tx.objectStore(DECK_STORE).get(CURRENT);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+  db.close();
+  return id ? loadDeckById(id) : null;
+}
+
+export async function forgetDeck(docId: string): Promise<void> {
+  if (typeof indexedDB === 'undefined') return;
+  const db = await openDb();
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(DECK_STORE, 'readwrite');
+    tx.objectStore(DECK_STORE).delete(docId);
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
   });
   db.close();
 }
 
-export async function loadDeckFile(): Promise<File | null> {
-  if (typeof indexedDB === 'undefined') return null;
-  const db = await openDb();
-  const rec = await new Promise<{ name: string; blob: Blob } | undefined>((resolve, reject) => {
-    const tx = db.transaction(DECK_STORE, 'readonly');
-    const req = tx.objectStore(DECK_STORE).get('current');
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-  });
-  db.close();
-  if (!rec) return null;
-  return new File([rec.blob], rec.name, { type: 'application/pdf' });
+/** Старые колоды вытесняются: это кэш, а не архив, и PDF весят мегабайты. */
+async function trimDecks(): Promise<void> {
+  const rows = await listDecks();
+  for (const old of rows.slice(DECK_LIMIT)) await forgetDeck(old.docId);
 }
 
 /** Сохраняются только финальные записи: промежуточные меняются по десять раз

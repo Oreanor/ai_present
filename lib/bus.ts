@@ -21,7 +21,10 @@ export type BusMessage =
   | { v: number; type: 'shape:clear'; payload: { slideIndex: number; all?: boolean } }
   | { v: number; type: 'shape:kind'; payload: { kind: ShapeKind } }
   /** Хоткеи, нажатые в Presentation, исполняет Control. */
-  | { v: number; type: 'cmd'; payload: { name: string } };
+  | { v: number; type: 'cmd'; payload: { name: string } }
+  /** Колода сменилась. Сам файл через шину не передаётся — это мегабайты;
+   *  окно показа забирает его из IndexedDB само. */
+  | { v: number; type: 'deck:changed'; payload: { docId: string } };
 
 type Handler = (m: BusMessage) => void;
 

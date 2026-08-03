@@ -283,6 +283,12 @@ const DICT = {
     pt: 'Apagar as anotações de todos os diapositivos?',
   },
   fixTextPrompt: { en: 'Fix the text', pt: 'Corrigir o texto' },
+
+  // --- галерея колод ---
+  recentDecks: { en: 'Decks you opened before', pt: 'Apresentações que já abriu' },
+  openAnother: { en: 'Open another PDF', pt: 'Abrir outro PDF' },
+  slidesCount: { en: 'slides', pt: 'diapositivos' },
+  forgetDeck: { en: 'Forget this deck', pt: 'Esquecer esta apresentação' },
 } as const;
 
 export type StringKey = keyof typeof DICT;
