@@ -10,6 +10,7 @@ const K = {
   captions: 'aip.captions',
   apiKey: 'aip.geminiKey',
   tier: 'aip.geminiTier',
+  cap: 'aip.geminiCap',
   glossary: 'aip.glossary',
   annPrefix: 'aip.ann.',
 };
@@ -52,6 +53,17 @@ export const loadTier = (): string =>
   typeof localStorage === 'undefined' ? 'free' : (localStorage.getItem(K.tier) ?? 'free');
 export const saveTier = (t: string) => {
   if (typeof localStorage !== 'undefined') localStorage.setItem(K.tier, t);
+};
+
+/** Жёсткий потолок запросов. Единственная защита, которая реально
+ *  останавливает: уведомления Google приходят постфактум. */
+export const loadCap = (): number => {
+  if (typeof localStorage === 'undefined') return 400;
+  const v = Number(localStorage.getItem(K.cap));
+  return Number.isFinite(v) && v >= 10 ? v : 400;
+};
+export const saveCap = (n: number) => {
+  if (typeof localStorage !== 'undefined') localStorage.setItem(K.cap, String(n));
 };
 
 export const loadGlossary = () => readJSON<{ from: string; to: string }[]>(K.glossary) ?? [];

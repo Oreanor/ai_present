@@ -1,15 +1,46 @@
 @import 'tailwindcss';
 
 @theme {
-  --color-ink: #0d0f14;
-  --color-panel: #161a22;
-  --color-line: #262c38;
-  --color-fg: #e7e9ef;
-  --color-dim: #8f98ab;
-  --color-accent: #6aa8ff;
-  --color-ok: #3ecf8e;
-  --color-warn: #e3b341;
-  --color-err: #f26d6d;
+  --color-ink: var(--ink);
+  --color-panel: var(--panel);
+  --color-line: var(--line);
+  --color-fg: var(--fg);
+  --color-dim: var(--dim);
+  --color-accent: var(--accent);
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+  --color-err: var(--err);
+}
+
+/* Тема переключается атрибутом на <html>, а не классом на body:
+   так она применяется до первой отрисовки и не мигает. */
+:root,
+:root[data-theme='dark'] {
+  --ink: #0d0f14;
+  --panel: #161a22;
+  --line: #262c38;
+  --fg: #e7e9ef;
+  --dim: #8f98ab;
+  --accent: #6aa8ff;
+  --ok: #3ecf8e;
+  --warn: #e3b341;
+  --err: #f26d6d;
+  --slide-bg: #000;
+}
+
+:root[data-theme='light'] {
+  --ink: #f7f8fa;
+  --panel: #ffffff;
+  --line: #dfe3ea;
+  --fg: #171a20;
+  --dim: #626b7c;
+  --accent: #2563eb;
+  --ok: #0f9d63;
+  --warn: #b07709;
+  --err: #d13b38;
+  /* Область слайда остаётся тёмной в обеих темах: она обрамляет
+     полиграфию, и светлые поля вокруг белого слайда сливаются. */
+  --slide-bg: #1b1f27;
 }
 
 html,
@@ -18,8 +49,8 @@ body {
 }
 
 body {
-  background: var(--color-ink);
-  color: var(--color-fg);
+  background: var(--ink);
+  color: var(--fg);
   font-family:
     system-ui,
     -apple-system,
@@ -44,7 +75,7 @@ body[data-window='present'] {
   height: 9px;
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--color-line);
+  background: var(--line);
   border-radius: 9px;
 }
 ::-webkit-scrollbar-track {

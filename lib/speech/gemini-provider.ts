@@ -21,19 +21,59 @@ const ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${MODE
  * выжигает минутный лимит за секунды и получает 429, который легко
  * принять за исчерпание дневной квоты.
  */
+/** Цены Tier 1 за миллион токенов. */
+const USD_PER_INPUT_TOKEN = 0.30 / 1_000_000;
+const USD_PER_OUTPUT_TOKEN = 2.50 / 1_000_000;
+
+/** Оценка до первого ответа: реплика 10–15 секунд это примерно
+ *  500 входных токенов аудио плюс промпт и 150 выходных. */
+export const COST_PER_REQUEST_USD = 0.0008;
+
 export const quota = {
   used: 0,
   /** Запросов в минуту. Free tier ~10, платный Tier 1 — сотни. */
   rpm: 10,
   /** Запросов в сутки. Free tier ~250. */
   rpd: 250,
+  /**
+   * Жёсткий потолок, который ставит пользователь. Существует ровно затем,
+   * чтобы залипший VAD или цикл переподключения не превратили тридцать
+   * центов в тридцать евро, пока никто не смотрит. Бюджетные уведомления
+   * Google приходят постфактум и ничего не останавливают.
+   */
+  cap: 400,
   /** Метки времени отправленных запросов за последнюю минуту. */
   recent: [] as number[],
   listeners: new Set<(n: number) => void>(),
 
-  setLimits(rpm: number, rpd: number) {
+  setLimits(rpm: number, rpd: number, cap?: number) {
     this.rpm = rpm;
     this.rpd = rpd;
+    if (cap !== undefined) this.cap = cap;
+  },
+
+  /** Фактически израсходованные токены — Gemini возвращает их в каждом
+   *  ответе, так что считаем не оценку, а реальную стоимость. */
+  inTokens: 0,
+  outTokens: 0,
+
+  addUsage(inTok: number, outTok: number) {
+    this.inTokens += inTok;
+    this.outTokens += outTok;
+    for (const l of this.listeners) l(this.used);
+  },
+
+  /**
+   * Потрачено. Обновляется сразу по приходу ответа, без обращений
+   * к биллингу — цифра должна быть перед глазами во время встречи,
+   * а не в консоли Google на следующий день.
+   *
+   * До первого ответа считаем по оценке; дальше — по фактическим токенам.
+   * Учитывает только расход этого приложения в этом браузере.
+   */
+  spentUsd(): number {
+    if (this.inTokens === 0) return this.used * COST_PER_REQUEST_USD;
+    return this.inTokens * USD_PER_INPUT_TOKEN + this.outTokens * USD_PER_OUTPUT_TOKEN;
   },
 
   /** Сколько ещё можно отправить прямо сейчас, не упираясь в минутный лимит. */
@@ -55,13 +95,20 @@ export const quota = {
     for (const l of this.listeners) l(this.used);
   },
 
+  /** Упёрлись либо в лимит тарифа, либо в собственный потолок — что раньше. */
   dayExhausted(): boolean {
-    return this.used >= this.rpd;
+    return this.used >= Math.min(this.rpd, this.cap);
+  },
+
+  capReached(): boolean {
+    return this.used >= this.cap;
   },
 
   reset() {
     this.used = 0;
     this.recent = [];
+    this.inTokens = 0;
+    this.outTokens = 0;
     for (const l of this.listeners) l(0);
   },
 
@@ -164,7 +211,14 @@ export class GeminiChunkProvider implements SpeechProvider {
     if (quota.dayExhausted()) {
       if (!this.dayWarned) {
         this.dayWarned = true;
-        opts.onError(new Error('Gemini daily quota is used up. Switch this channel to a pinned language, or upgrade the key.'));
+        opts.onError(
+          new Error(
+            quota.capReached()
+              ? `Stopped at your own limit of ${quota.cap} requests (about $${quota.spentUsd().toFixed(2)}). ` +
+                'Raise it in ⋯ → Languages and setup if you meant to keep going.'
+              : 'Gemini quota for this key is used up. The meeting audio channel stops; your own speech keeps working.',
+          ),
+        );
       }
       return;
     }
@@ -233,7 +287,9 @@ export class GeminiChunkProvider implements SpeechProvider {
 
       const json = (await res.json()) as {
         candidates?: { content?: { parts?: { text?: string }[] } }[];
+        usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number };
       };
+      quota.addUsage(json.usageMetadata?.promptTokenCount ?? 0, json.usageMetadata?.candidatesTokenCount ?? 0);
       const raw = json.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
       let parsed: GeminiJson | null = null;
       try {

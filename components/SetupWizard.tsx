@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { ALL_LANGS, LANG_NAMES, type Lang, type MeetingProfile } from '@/lib/types';
 import { PRESETS, needsApiKey, requiredPairs, validateProfile } from '@/lib/profile';
-import { loadApiKey, loadProfile, loadTier, saveApiKey, saveTier } from '@/lib/storage';
+import { loadApiKey, loadCap, loadProfile, loadTier, saveApiKey, saveCap, saveTier } from '@/lib/storage';
 import { pairAvailability, getTranslator, translatorSupported } from '@/lib/speech/translator';
 import { webSpeechSupported } from '@/lib/speech/free-provider';
 
@@ -26,11 +26,13 @@ export function SetupWizard({ onDone }: { onDone: (p: MeetingProfile) => void })
   const [profile, setProfile] = useState<MeetingProfile>(() => loadProfile() ?? PRESETS[0].profile);
   const [apiKey, setApiKey] = useState('');
   const [tier, setTier] = useState<string>('free');
+  const [cap, setCap] = useState(400);
   const [packs, setPacks] = useState<Record<string, string>>({});
 
   useEffect(() => {
     setApiKey(loadApiKey());
     setTier(loadTier());
+    setCap(loadCap());
   }, []);
 
   const problems = validateProfile(profile);
@@ -224,6 +226,32 @@ export function SetupWizard({ onDone }: { onDone: (p: MeetingProfile) => void })
             <p className="mt-2 text-[11px] text-dim">
               A free key allows roughly ten requests a minute. Two hours of your own speech needs about six hundred —
               which is why the microphone should stay pinned and only the room audio should use Gemini.
+            </p>
+
+            {/* Жёсткий потолок. Бюджетные уведомления Google приходят
+                постфактум и ничего не останавливают — единственная защита
+                от залипшего цикла та, что стоит в самом приложении. */}
+            <div className="mt-3 flex items-center gap-2">
+              <span className="text-xs text-dim">Never send more than</span>
+              <input
+                type="number"
+                min={10}
+                max={100000}
+                value={cap}
+                onChange={(e) => {
+                  const v = Math.max(10, Number(e.target.value) || 10);
+                  setCap(v);
+                  saveCap(v);
+                }}
+                className="w-24 rounded border border-line bg-ink px-2 py-1 text-sm outline-none focus:border-accent"
+              />
+              <span className="text-xs text-dim">
+                requests — a hard stop, roughly ${(cap * 0.0008).toFixed(2)}
+              </span>
+            </div>
+            <p className="mt-1 text-[11px] text-dim">
+              This is the only limit that actually stops anything. Google&apos;s budget alerts arrive after the fact.
+              For a second line of defence, set a quota override on the project in the Cloud console.
             </p>
           </div>
         </Section>

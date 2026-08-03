@@ -16,10 +16,11 @@ import { getTranslator, pairAvailability } from '@/lib/speech/translator';
 import { createProvider, planChannels, type ProviderId } from '@/lib/speech/registry';
 import type { SpeechProvider } from '@/lib/speech/types';
 import { quota } from '@/lib/speech/gemini-provider';
-import { fingerprint, loadProfile, loadTier } from '@/lib/storage';
+import { fingerprint, loadCap, loadProfile, loadTier } from '@/lib/storage';
 import { hydrateStore, useStore } from '@/lib/store';
 import { LANG_NAMES, type MeetingProfile, type Speaker } from '@/lib/types';
 import { arrange, openPresentation } from '@/lib/windows';
+import { initUiPrefs, setTheme, setUiLang, useT, useTheme, useUiLang, type Theme, type UiLang } from '@/lib/ui-prefs';
 
 /**
  * Окно ведущего. Раскладка повторяет то, что видит зал, чтобы не надо
@@ -33,6 +34,9 @@ import { arrange, openPresentation } from '@/lib/windows';
  */
 export default function ControlPage() {
   const s = useStore();
+  const theme = useTheme();
+  const uiLang = useUiLang();
+  const t = useT();
   const [ready, setReady] = useState(false);
   const [wizard, setWizard] = useState(false);
   const [deck, setDeck] = useState<Deck | null>(null);
@@ -53,12 +57,13 @@ export default function ControlPage() {
 
   useEffect(() => {
     hydrateStore();
+    initUiPrefs();
     setWizard(loadProfile() === null);
     void useStore.getState().restoreLog();
     // Лимиты зависят от тарифа ключа, а API их не сообщает — берём
     // из настроек. Ошибиться здесь значит ловить 429 на первых репликах.
     const t = KEY_TIERS.find((x) => x.id === loadTier()) ?? KEY_TIERS[0];
-    quota.setLimits(t.rpm, t.rpd);
+    quota.setLimits(t.rpm, t.rpd, loadCap());
     setReady(true);
     const off = quota.subscribe(setUsed);
     return () => {
@@ -296,6 +301,7 @@ export default function ControlPage() {
   const plan = planChannels(s.profile);
   const shapes = s.annotations[s.slideIndex] ?? [];
   const listening = s.presenterStatus === 'listening' || s.audienceStatus === 'listening';
+  const geminiInUse = plan.presenter === 'gemini' || plan.audience === 'gemini';
 
   // Крупная строка внизу: во время Q&A это вопрос на языке ведущего,
   // иначе — то, что прямо сейчас читает зал.
@@ -317,7 +323,9 @@ export default function ControlPage() {
       <div className="flex min-h-0 flex-1">
         {/* Слайд во всю высоту. Навигация — прозрачными зонами по краям,
             чтобы не отрезать полосу снизу. */}
-        <div ref={stageRef} className="relative min-h-0 flex-1 bg-black">
+        {/* Область слайда остаётся тёмной в обеих темах: она обрамляет
+            полиграфию, а светлые поля вокруг белого слайда сливаются. */}
+        <div ref={stageRef} className="relative min-h-0 flex-1" style={{ background: 'var(--slide-bg)' }}>
           {renderer && deck ? (
             <>
               <SlideCanvas
@@ -373,7 +381,17 @@ export default function ControlPage() {
                     : 'Listen to my microphone and the meeting audio at the same time'
                 }
               >
-                {listening ? 'Stop listening' : 'Start listening'}
+                {listening ? t('stopListening') : t('startListening')}
+              </button>
+              {/* Язык микрофона — сразу за стартом: во время речи это
+                  единственная кнопка, которую приходится нажимать. */}
+              <button
+                onClick={() => runCommand('lang')}
+                disabled={s.profile.presenterMode.kind !== 'pin'}
+                className="rounded border border-line px-3 py-2 text-xs font-bold disabled:opacity-40"
+                title="Which language I am speaking right now. Press before you switch. Shortcut: L"
+              >
+                {modeLabel(s.profile.presenterMode)}
               </button>
               <span className="flex items-center gap-2 rounded border border-line px-2 text-[10px] uppercase text-dim">
                 <span className="flex items-center gap-1" title={`Microphone: ${s.presenterStatus}`}>
@@ -401,18 +419,12 @@ export default function ControlPage() {
                   Captions HIDDEN
                 </button>
               ) : (
-                <span className="flex-1 font-mono text-[11px] text-dim" title="Time since this window was opened">
-                  {fmt(elapsed)}
+                <span className="flex flex-1 items-center gap-2 font-mono text-[11px] text-dim">
+                  <span title="Time since this window was opened">{fmt(elapsed)}</span>
+                  {/* Расход на виду, а не в консоли Google на следующий день. */}
+                  {geminiInUse ? <Spend used={used} /> : null}
                 </span>
               )}
-              <button
-                onClick={() => runCommand('lang')}
-                disabled={s.profile.presenterMode.kind !== 'pin'}
-                className="rounded border border-line px-2.5 py-1.5 text-xs font-bold disabled:opacity-40"
-                title="Which language I am speaking right now. Press before you switch. Shortcut: L"
-              >
-                {modeLabel(s.profile.presenterMode)}
-              </button>
               <div className="relative">
                 <button
                   onClick={() => setMenu((v) => !v)}
@@ -437,6 +449,8 @@ export default function ControlPage() {
                       presentWin.current = openPresentation(deck?.aspect);
                     }}
                     arrangeWindows={() => arrange(presentWin.current, deck?.aspect)}
+                    theme={theme}
+                    uiLang={uiLang}
                   />
                 ) : null}
               </div>
@@ -461,7 +475,7 @@ export default function ControlPage() {
       {/* По центру и крупно — читается боковым зрением, не отрывая
           внимания от зала. Высота фиксирована: иначе длинная фраза
           выталкивает сама себя за край окна. */}
-      <footer className="flex h-[168px] shrink-0 flex-col items-center justify-center gap-1.5 border-t border-line bg-black/50 px-10 py-3">
+      <footer className="flex h-[168px] shrink-0 flex-col items-center justify-center gap-1.5 border-t border-line bg-panel px-10 py-3">
         <div className="flex items-center gap-2 text-[10px] uppercase tracking-wide text-dim">
           <Dot status={s.mode === 'qa' ? s.audienceStatus : s.presenterStatus} />
           <span>{roomAsked ? 'Question from the room' : `On screen — ${LANG_NAMES[s.profile.captionLang]}`}</span>
@@ -522,6 +536,8 @@ function Menu({
   openWizard,
   openPresent,
   arrangeWindows,
+  theme,
+  uiLang,
 }: {
   onClose: () => void;
   state: ReturnType<typeof useStore.getState>;
@@ -535,6 +551,8 @@ function Menu({
   openWizard: () => void;
   openPresent: () => void;
   arrangeWindows: () => void;
+  theme: Theme;
+  uiLang: UiLang;
 }) {
   const roomy = sideRoom(16 / 9, deck?.aspect ?? 16 / 9) >= SIDE_MIN_FRACTION;
   const item = 'w-full rounded px-2 py-1.5 text-left text-xs hover:bg-white/5';
@@ -607,6 +625,34 @@ function Menu({
           >
             Flagged items only
           </button>
+        </Group>
+
+        <Group label="Appearance and interface language">
+          <div className="flex gap-1">
+            {(['dark', 'light'] as const).map((t) => (
+              <button
+                key={t}
+                onClick={() => setTheme(t)}
+                className={`flex-1 rounded px-2 py-1 text-xs capitalize ${
+                  theme === t ? 'bg-accent font-semibold text-black' : 'border border-line'
+                }`}
+              >
+                {t}
+              </button>
+            ))}
+            {(['en', 'pt'] as const).map((l) => (
+              <button
+                key={l}
+                onClick={() => setUiLang(l)}
+                className={`rounded px-2.5 py-1 text-xs font-semibold uppercase ${
+                  uiLang === l ? 'bg-accent text-black' : 'border border-line'
+                }`}
+                title={l === 'en' ? 'English interface' : 'Interface em português'}
+              >
+                {l}
+              </button>
+            ))}
+          </div>
         </Group>
 
         <Group label="Session">
@@ -701,6 +747,25 @@ function Group({ label, children }: { label: string; children: React.ReactNode }
       <p className="px-2 pb-1 text-[10px] uppercase tracking-wide text-dim">{label}</p>
       {children}
     </div>
+  );
+}
+
+/**
+ * Расход прямо в панели. Считается локально по фактическим токенам из
+ * ответов Gemini, поэтому обновляется мгновенно и без обращений к биллингу.
+ * Учитывает только этот браузер — общий счёт в консоли Google может быть
+ * больше, если ключ используется где-то ещё.
+ */
+function Spend({ used }: { used: number }) {
+  const usd = quota.spentUsd();
+  const share = quota.cap ? used / quota.cap : 0;
+  return (
+    <span
+      className={share > 0.9 ? 'text-err' : share > 0.7 ? 'text-warn' : ''}
+      title={`${used} of your ${quota.cap} request limit. Actual tokens: ${quota.inTokens} in, ${quota.outTokens} out.`}
+    >
+      ${usd < 0.01 ? usd.toFixed(3) : usd.toFixed(2)} · {used}/{quota.cap}
+    </span>
   );
 }
 
