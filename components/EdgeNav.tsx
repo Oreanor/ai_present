@@ -1,5 +1,7 @@
 'use client';
 
+import { useT } from '@/lib/ui-prefs';
+
 /**
  * Навигация по слайдам прозрачными зонами по краям.
  *
@@ -16,12 +18,13 @@ export function EdgeNav({
   onClick: () => void;
   disabled: boolean;
 }) {
+  const t = useT();
   const dir = side === 'left' ? 90 : 270;
   return (
     <button
       onClick={onClick}
       disabled={disabled}
-      title={side === 'left' ? 'Previous slide (←)' : 'Next slide (→)'}
+      title={side === 'left' ? t('hintPrevSlide') : t('hintNextSlide')}
       className={`group absolute inset-y-0 w-16 disabled:pointer-events-none ${side === 'left' ? 'left-0' : 'right-0'}`}
     >
       <span

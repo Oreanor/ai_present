@@ -102,13 +102,13 @@ export default function ControlPage() {
           const next = st.cyclePresenterLang();
           if (next) {
             channels.setPresenterLanguage(next);
-            st.toast_(`Microphone is now ${LANG_NAMES[next]}`);
-          } else st.toast_('Language is detected automatically — nothing to switch.', 'warn');
+            st.toast_(`${t('micNowIs')} ${LANG_NAMES[next]}`);
+          } else st.toast_(t('nothingToSwitch'), 'warn');
           break;
         }
         case 'gemini':
           void channels.swapPresenter().then((next) => {
-            if (next) st.toast_(`Microphone engine: ${next}`);
+            if (next) st.toast_(`${t('micEngine')}: ${next}`);
           });
           break;
         case 'flag': st.flagLast(); break;
@@ -117,11 +117,11 @@ export default function ControlPage() {
         case 'shapeKind': st.cycleShapeKind(); break;
         case 'clearSlide': st.clearShapes(false); break;
         case 'clearAll':
-          if (confirm('Erase annotations on every slide?')) st.clearShapes(true);
+          if (confirm(t('clearAllShapesConfirm'))) st.clearShapes(true);
           break;
       }
     },
-    [channels],
+    [channels, t],
   );
 
   useEffect(() => attachHotkeys(runCommand), [runCommand]);
@@ -217,11 +217,7 @@ export default function ControlPage() {
               <button
                 onClick={() => void (channels.listening ? channels.stopAll() : channels.startAll())}
                 className={`btn flex-1 py-2 ${channels.listening ? 'btn-stop' : 'btn-go'}`}
-                title={
-                  channels.listening
-                    ? 'Stop listening to both the microphone and the meeting'
-                    : 'Listen to my microphone and the meeting audio at the same time'
-                }
+                title={channels.listening ? t('hintStop') : t('hintListen')}
               >
                 {channels.listening ? t('stopListening') : t('startListening')}
               </button>
@@ -232,7 +228,7 @@ export default function ControlPage() {
                 onClick={() => runCommand('lang')}
                 disabled={s.profile.presenterMode.kind !== 'pin'}
                 className="btn py-2 font-bold"
-                title="Which language I am speaking right now. Press before you switch. Shortcut: L"
+                title={t('hintMicLang')}
               >
                 {modeLabel(s.profile.presenterMode)}
               </button>
@@ -252,17 +248,17 @@ export default function ControlPage() {
             <div className="mt-1 flex items-center gap-1">
               {s.captions.visible ? (
                 <span className="flex flex-1 items-center gap-2 font-mono text-[11px] text-dim">
-                  <span title="Time since this window was opened">{clock(elapsed)}</span>
+                  <span title={t('hintElapsed')}>{clock(elapsed)}</span>
                   {geminiInUse ? <Spend used={used} /> : null}
                 </span>
               ) : (
-                <button onClick={() => runCommand('captions')} className="btn btn-alarm flex-1" title="Press H to bring them back">
+                <button onClick={() => runCommand('captions')} className="btn btn-alarm flex-1" title={t('hintCaptionsBack')}>
                   {t('captionsHidden')}
                 </button>
               )}
 
               <div className="relative">
-                <button onClick={() => setMenu((v) => !v)} className="btn" title="Everything you do not need mid-talk">
+                <button onClick={() => setMenu((v) => !v)} className="btn" title={t('menuHint')}>
                   ⋯
                 </button>
                 {menu ? (

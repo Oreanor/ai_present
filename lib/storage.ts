@@ -105,17 +105,50 @@ export async function fingerprint(file: File): Promise<string> {
 
 const DB = 'ai-present';
 const STORE = 'entries';
+const DECK_STORE = 'deck';
 
 function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB, 1);
+    const req = indexedDB.open(DB, 2);
     req.onupgradeneeded = () => {
       const db = req.result;
       if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE, { keyPath: 'id' });
+      if (!db.objectStoreNames.contains(DECK_STORE)) db.createObjectStore(DECK_STORE);
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
   });
+}
+
+/**
+ * Сам файл колоды. Лежит здесь, чтобы окно показа забрало его само:
+ * через BroadcastChannel гонять мегабайты нельзя, а требовать один
+ * и тот же файл перетащить дважды — издевательство.
+ */
+export async function saveDeckFile(docId: string, file: File): Promise<void> {
+  if (typeof indexedDB === 'undefined') return;
+  const db = await openDb();
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(DECK_STORE, 'readwrite');
+    tx.objectStore(DECK_STORE).put({ docId, name: file.name, blob: file }, 'current');
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+  db.close();
+}
+
+export async function loadDeckFile(): Promise<File | null> {
+  if (typeof indexedDB === 'undefined') return null;
+  const db = await openDb();
+  const rec = await new Promise<{ name: string; blob: Blob } | undefined>((resolve, reject) => {
+    const tx = db.transaction(DECK_STORE, 'readonly');
+    const req = tx.objectStore(DECK_STORE).get('current');
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+  db.close();
+  if (!rec) return null;
+  return new File([rec.blob], rec.name, { type: 'application/pdf' });
 }
 
 /** Сохраняются только финальные записи: промежуточные меняются по десять раз

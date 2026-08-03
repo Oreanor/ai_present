@@ -6,7 +6,7 @@ import { requiredPairs } from '@/lib/profile';
 import { getTranslator, pairAvailability } from '@/lib/speech/translator';
 import { useStore } from '@/lib/store';
 import { HOTKEY_HELP } from '@/lib/hotkeys';
-import { setTheme, setUiLang, type Theme, type UiLang } from '@/lib/ui-prefs';
+import { setTheme, setUiLang, THEMES, UI_LANGS, useT, type Theme, type UiLang } from '@/lib/ui-prefs';
 import type { Lang } from '@/lib/types';
 
 /**
@@ -34,74 +34,85 @@ export function ControlMenu({
   onOpenWizard: () => void;
 }) {
   const state = useStore();
+  const t = useT();
 
   return (
     <>
       <div className="fixed inset-0 z-10" onClick={onClose} />
       <div className="menu">
-        <Group label="The window you share in Teams">
+        <Group label={t('shareWindow')}>
           <button className="menu-item" onClick={onOpenPresentation}>
-            Open the presentation window
+            {t('openPresentation')}
           </button>
         </Group>
 
         <PackList />
 
-        <Group label="Appearance and interface language">
+        <Group label={t('appearance')}>
           <div className="flex gap-1">
-            {(['dark', 'light'] as const).map((v) => (
+            {THEMES.map((v) => (
               <button
-                key={v}
-                onClick={() => setTheme(v)}
-                className={`btn btn-sm flex-1 capitalize ${theme === v ? 'btn-on' : ''}`}
+                key={v.id}
+                onClick={() => setTheme(v.id)}
+                className={`btn btn-sm flex-1 ${theme === v.id ? 'btn-on' : ''}`}
               >
-                {v}
-              </button>
-            ))}
-            {(['en', 'pt'] as const).map((v) => (
-              <button
-                key={v}
-                onClick={() => setUiLang(v)}
-                className={`btn btn-sm font-semibold uppercase ${uiLang === v ? 'btn-on' : ''}`}
-                title={v === 'en' ? 'English interface' : 'Interface em português'}
-              >
-                {v}
+                {t(v.key)}
               </button>
             ))}
           </div>
         </Group>
 
-        <Group label="Export">
+        {/* Язык КНОПОК, не язык встречи. Их легко перепутать, поэтому
+            блоки разные и подписи разные. */}
+        <Group label={t('interfaceLanguage')}>
+          <div className="flex gap-1">
+            {UI_LANGS.map((v) => (
+              <button
+                key={v.id}
+                onClick={() => setUiLang(v.id)}
+                className={`btn btn-sm flex-1 ${uiLang === v.id ? 'btn-on' : ''}`}
+              >
+                {v.label}
+              </button>
+            ))}
+          </div>
+        </Group>
+
+        <Group label={t('export')}>
           <button
             className="menu-item"
             onClick={() => download('log-full.md', fullMarkdown(state.entries, state.profile))}
           >
-            Full log with originals
+            {t('fullLog')}
           </button>
           <button
             className="menu-item"
             onClick={() => download('follow-up.md', flaggedMarkdown(state.entries, state.profile.transcriptLangs[0]))}
           >
-            Flagged items only
+            {t('flaggedOnly')}
           </button>
         </Group>
 
-        <Group label="Session">
+        <Group label={t('session')}>
           <button
             className="menu-item text-err"
             onClick={() => {
-              if (confirm('Erase the whole log? Export first if you need it.')) state.clearLog();
+              if (confirm(t('clearLogConfirm'))) state.clearLog();
             }}
           >
-            Clear the log
+            {t('clearLog')}
           </button>
           <button className="menu-item" onClick={onOpenWizard}>
-            Languages and setup…
+            {t('languagesSetup')}
           </button>
-          {geminiInUse ? <p className="px-2 py-1 text-[11px] text-dim">Gemini requests used: {used}</p> : null}
+          {geminiInUse ? (
+            <p className="px-2 py-1 text-[11px] text-dim">
+              {t('requestsUsed')}: {used}
+            </p>
+          ) : null}
         </Group>
 
-        <Group label="Keyboard">
+        <Group label={t('keyboard')}>
           {HOTKEY_HELP.map((h) => (
             <div key={h.keys} className="flex justify-between gap-2 px-2 py-0.5 text-[11px]">
               <span className="font-mono text-accent">{h.keys}</span>
@@ -121,6 +132,7 @@ export function ControlMenu({
  */
 function PackList() {
   const profile = useStore((s) => s.profile);
+  const t = useT();
   const pairs = requiredPairs(profile);
   const [status, setStatus] = useState<Record<string, string>>({});
 
@@ -151,7 +163,7 @@ function PackList() {
   if (!pending.length) return null;
 
   return (
-    <Group label="Translation packs — one click each">
+    <Group label={t('packs')}>
       {pending.map(({ from, to }) => {
         const key = `${from}>${to}`;
         return (
@@ -161,7 +173,7 @@ function PackList() {
             </span>
             <span className="text-dim">{status[key] ?? '…'}</span>
             <button onClick={() => void download_(from, to)} className="btn btn-sm ml-auto">
-              Download
+              {t('download')}
             </button>
           </div>
         );

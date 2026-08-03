@@ -46,9 +46,7 @@ export function ChatLog() {
             disabled={!!translating}
             className={`btn btn-sm font-semibold uppercase ${shown === l ? 'btn-on' : ''}`}
             title={
-              profile.transcriptLangs.includes(l)
-                ? `Kept in ${LANG_NAMES[l]} — switches instantly`
-                : `Translate the whole conversation into ${LANG_NAMES[l]} on this device`
+              profile.transcriptLangs.includes(l) ? t('hintKeptIn') : t('hintTranslateAll')
             }
           >
             {l}
@@ -166,7 +164,7 @@ function Bubble({
             ) : null}
             <button
               onClick={() => {
-                const next = prompt(`Fix the ${LANG_NAMES[shown]} text`, main);
+                const next = prompt(`${t('fixTextPrompt')} (${LANG_NAMES[shown]})`, main);
                 if (next !== null) onEdit(next);
               }}
               className="btn btn-sm mt-1.5"

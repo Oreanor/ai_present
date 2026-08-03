@@ -8,6 +8,7 @@ import { LAYOUT, SIDE_COLUMN } from '@/lib/constants';
 import { sideRoom } from '@/lib/geometry';
 import { SlideCanvas, type SlideRect } from '@/components/SlideCanvas';
 import { useElementSize } from '@/hooks/useElementSize';
+import { useT } from '@/lib/ui-prefs';
 import { getBus, type BusMessage } from '@/lib/bus';
 import { openDeck, PageRenderer, type Deck } from '@/lib/pdf';
 import { attachHotkeys, type Command } from '@/lib/hotkeys';
@@ -178,6 +179,7 @@ function StatusDot({ status }: { status: PresentationState['status'] }) {
 /** Колода грузится в каждом окне отдельно: файл не гоняется через
  *  BroadcastChannel, а Control и Presentation читают один и тот же PDF. */
 function DropDeck({ onFile, waiting }: { onFile: (f: File) => void; waiting: boolean }) {
+  const t = useT();
   const [over, setOver] = useState(false);
   return (
     <div
@@ -199,9 +201,9 @@ function DropDeck({ onFile, waiting }: { onFile: (f: File) => void; waiting: boo
           over ? 'border-accent text-fg' : 'border-white/15 text-white/45'
         }`}
       >
-        <p className="text-base font-semibold text-white/80">Presentation window</p>
-        <p className="mt-2">Drop the same PDF here.</p>
-        {waiting ? <p className="mt-1 text-white/35">Connected to Control.</p> : null}
+        <p className="text-base font-semibold text-white/80">{t('presentationWindow')}</p>
+        <p className="mt-2">{t('dropSamePdf')}</p>
+        {waiting ? <p className="mt-1 text-white/35">{t('connectedToControl')}</p> : null}
       </div>
     </div>
   );

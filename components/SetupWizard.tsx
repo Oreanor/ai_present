@@ -2,10 +2,13 @@
 
 import { useEffect, useState } from 'react';
 import { ALL_LANGS, LANG_NAMES, type Lang, type MeetingProfile } from '@/lib/types';
-import { PRESETS, needsApiKey, requiredPairs, validateProfile } from '@/lib/profile';
+import { GEMINI } from '@/lib/constants';
+import { usd } from '@/lib/format';
+import { DEFAULT_PROFILE, needsApiKey, requiredPairs, validateProfile } from '@/lib/profile';
 import { loadApiKey, loadCap, loadProfile, loadTier, saveApiKey, saveCap, saveTier } from '@/lib/storage';
 import { pairAvailability, getTranslator, translatorSupported } from '@/lib/speech/translator';
 import { webSpeechSupported } from '@/lib/speech/free-provider';
+import { useT, type StringKey } from '@/lib/ui-prefs';
 
 /**
  * Мастер первого запуска и предполётная проверка (§12).
@@ -14,19 +17,42 @@ import { webSpeechSupported } from '@/lib/speech/free-provider';
  * ОСНОВНОЙ способ настройки, а не удобство. Проверки строятся ИЗ ПРОФИЛЯ:
  * неприменимые пункты не показываются вовсе — пользователь не должен
  * гадать, почему у него красный крест на том, чем он не пользуется.
+ *
+ * Ни одна строка здесь не написана в разметке: всё через словарь, иначе
+ * португальский интерфейс останется наполовину английским.
  */
+
 /** Лимиты сильно отличаются по тарифам, и от них зависит, с какой частотой
  *  вообще можно слать. Спрашиваем прямо, а не угадываем. */
-export const KEY_TIERS = [
-  { id: 'free', label: 'Free', hint: '~10 req/min, ~250 a day', rpm: 10, rpd: 250 },
-  { id: 'paid', label: 'Billing enabled', hint: 'hundreds per minute', rpm: 150, rpd: 100_000 },
-] as const;
+export const KEY_TIERS: { id: string; label: StringKey; hint: StringKey; rpm: number; rpd: number }[] = [
+  { id: 'free', label: 'tierFree', hint: 'tierFreeHint', rpm: 10, rpd: 250 },
+  { id: 'paid', label: 'tierPaid', hint: 'tierPaidHint', rpm: 150, rpd: 100_000 },
+];
+
+/**
+ * Таблица «пин против авто». Данные, а не разметка.
+ *
+ * Ячейка — либо ключ словаря, либо готовая строка вроде «~0.15 s»,
+ * которую переводить нечего. Различаются они типом, а не угадыванием:
+ * гадать по содержимому значит однажды перевести замер задержки.
+ */
+type Cell = { key: StringKey } | { text: string };
+
+const COMPARISON: { row: StringKey; pin: Cell; auto: Cell }[] = [
+  { row: 'rowDelay', pin: { text: '~0.15 s' }, auto: { text: '~3 s' } },
+  { row: 'rowPartial', pin: { key: 'valYes' }, auto: { key: 'valNo' } },
+  { row: 'rowLimits', pin: { key: 'valNone' }, auto: { key: 'valSharedQuota' } },
+  { row: 'rowKey', pin: { key: 'valNotNeeded' }, auto: { key: 'valRequired' } },
+  { row: 'rowOffline', pin: { key: 'valPartly' }, auto: { key: 'valNo' } },
+  { row: 'rowRemember', pin: { key: 'valPressL' }, auto: { key: 'valNothing' } },
+];
 
 export function SetupWizard({ onDone }: { onDone: (p: MeetingProfile) => void }) {
-  const [profile, setProfile] = useState<MeetingProfile>(() => loadProfile() ?? PRESETS[0].profile);
+  const t = useT();
+  const [profile, setProfile] = useState<MeetingProfile>(() => loadProfile() ?? DEFAULT_PROFILE);
   const [apiKey, setApiKey] = useState('');
-  const [tier, setTier] = useState<string>('free');
-  const [cap, setCap] = useState(400);
+  const [tier, setTier] = useState('free');
+  const [cap, setCap] = useState(GEMINI.DEFAULT_CAP as number);
   const [packs, setPacks] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -70,49 +96,30 @@ export function SetupWizard({ onDone }: { onDone: (p: MeetingProfile) => void })
     };
   }, [JSON.stringify(pairs)]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const cell = (c: Cell) => ('key' in c ? t(c.key) : c.text);
+
   return (
     <main className="mx-auto max-w-3xl overflow-y-auto p-6">
-      <h1 className="text-lg font-semibold">Set up this meeting</h1>
-      <p className="mt-1 text-sm text-dim">
-        Everything below is stored on this machine only. Nothing is sent anywhere until you start a session.
-      </p>
+      <h1 className="text-lg font-semibold">{t('setupTitle')}</h1>
+      <p className="mt-1 text-sm text-dim">{t('setupLead')}</p>
 
-      <Section title="Start from a preset">
-        <div className="grid gap-2">
-          {PRESETS.map((p) => (
-            <button
-              key={p.id}
-              onClick={() => setProfile(p.profile)}
-              className="rounded-lg border border-line px-3 py-2 text-left hover:border-accent"
-            >
-              <div className="text-sm font-medium">{p.label}</div>
-              <div className="text-xs text-dim">{p.hint}</div>
-            </button>
-          ))}
-        </div>
-      </Section>
-
-      <Section title="Languages">
-        <Field label="I speak">
+      <Section title={t('languages')}>
+        <Field label={t('iSpeak')}>
           <LangPicker
             selected={profile.presenterLangs}
             onToggle={(l) => setProfile({ ...profile, presenterLangs: toggle(profile.presenterLangs, l) })}
           />
         </Field>
-        <Field label="The audience speaks">
+        <Field label={t('audienceSpeaks')}>
           <LangPicker
             selected={profile.audienceLangs}
             onToggle={(l) => setProfile({ ...profile, audienceLangs: toggle(profile.audienceLangs, l) })}
           />
         </Field>
-        <Field label="Captions shown in">
-          <LangPicker
-            selected={[profile.captionLang]}
-            single
-            onToggle={(l) => setProfile({ ...profile, captionLang: l })}
-          />
+        <Field label={t('captionsShownIn')}>
+          <LangPicker selected={[profile.captionLang]} onToggle={(l) => setProfile({ ...profile, captionLang: l })} />
         </Field>
-        <Field label="Two transcripts in">
+        <Field label={t('transcriptsIn')}>
           <div className="flex gap-2">
             {[0, 1].map((i) => (
               <select
@@ -123,7 +130,7 @@ export function SetupWizard({ onDone }: { onDone: (p: MeetingProfile) => void })
                   next[i] = e.target.value as Lang;
                   setProfile({ ...profile, transcriptLangs: next });
                 }}
-                className="rounded border border-line bg-ink px-2 py-1 text-sm"
+                className="field w-auto"
               >
                 {ALL_LANGS.map((l) => (
                   <option key={l} value={l}>
@@ -136,32 +143,23 @@ export function SetupWizard({ onDone }: { onDone: (p: MeetingProfile) => void })
         </Field>
       </Section>
 
-      <Section title="How the language is decided">
-        <p className="mb-3 text-xs text-dim">
-          This choice decides the engine, and the difference is bigger than it looks.
-        </p>
+      <Section title={t('howLangDecided')}>
+        <p className="mb-3 text-xs text-dim">{t('howLangLead')}</p>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[520px] border-collapse text-xs">
             <thead>
               <tr className="text-left text-dim">
                 <th className="py-1 pr-3" />
-                <th className="py-1 pr-3">Pin — you say which language</th>
-                <th className="py-1">Auto — the engine decides</th>
+                <th className="py-1 pr-3">{t('colPin')}</th>
+                <th className="py-1">{t('colAuto')}</th>
               </tr>
             </thead>
             <tbody>
-              {[
-                ['Caption delay', '~0.15 s', '~3 s'],
-                ['Live partial text', 'yes', 'no'],
-                ['Daily limits', 'none at all', 'shared Gemini quota'],
-                ['API key', 'not needed', 'required'],
-                ['Works offline', 'partly', 'no'],
-                ['You must remember', 'press L before switching', 'nothing'],
-              ].map(([k, a, b]) => (
-                <tr key={k} className="border-t border-line">
-                  <td className="py-1 pr-3 text-dim">{k}</td>
-                  <td className="py-1 pr-3">{a}</td>
-                  <td className="py-1">{b}</td>
+              {COMPARISON.map((r) => (
+                <tr key={r.row} className="border-t border-line">
+                  <td className="py-1 pr-3 text-dim">{t(r.row)}</td>
+                  <td className="py-1 pr-3">{cell(r.pin)}</td>
+                  <td className="py-1">{cell(r.auto)}</td>
                 </tr>
               ))}
             </tbody>
@@ -170,13 +168,13 @@ export function SetupWizard({ onDone }: { onDone: (p: MeetingProfile) => void })
 
         <div className="mt-3 grid gap-2 sm:grid-cols-2">
           <ModePicker
-            title="Microphone"
+            title={t('microphone')}
             langs={profile.presenterLangs}
             mode={profile.presenterMode}
             onChange={(m) => setProfile({ ...profile, presenterMode: m })}
           />
           <ModePicker
-            title="Room audio"
+            title={t('roomAudio')}
             langs={profile.audienceLangs}
             mode={profile.audienceMode}
             onChange={(m) => setProfile({ ...profile, audienceMode: m })}
@@ -185,11 +183,8 @@ export function SetupWizard({ onDone }: { onDone: (p: MeetingProfile) => void })
       </Section>
 
       {keyNeeded ? (
-        <Section title="Gemini API key">
-          <p className="mb-2 text-xs text-dim">
-            Needed because at least one channel is on auto-detect. Stored in this browser only, never sent anywhere
-            but Google. Pin both channels and this section disappears.
-          </p>
+        <Section title={t('apiKeyTitle')}>
+          <p className="mb-2 text-xs text-dim">{t('apiKeyLead')}</p>
           <input
             type="password"
             value={apiKey}
@@ -198,41 +193,36 @@ export function SetupWizard({ onDone }: { onDone: (p: MeetingProfile) => void })
               saveApiKey(e.target.value.trim());
             }}
             placeholder="AIza…"
-            className="w-full rounded border border-line bg-ink px-2 py-1.5 text-sm outline-none focus:border-accent"
+            className="field"
           />
 
           {/* Первым упирается минутный лимит, а не суточный. Без верного
-              значения провайдер шлёт быстрее, чем ключ разрешает, и ловит
-              429 на первых же репликах. */}
+              значения провайдер шлёт быстрее, чем ключ разрешает. */}
           <div className="mt-3">
-            <div className="mb-1.5 text-xs text-dim">What kind of key is it?</div>
+            <div className="mb-1.5 text-xs text-dim">{t('keyKind')}</div>
             <div className="flex gap-2">
-              {KEY_TIERS.map((t) => (
+              {KEY_TIERS.map((k) => (
                 <button
-                  key={t.id}
+                  key={k.id}
                   onClick={() => {
-                    setTier(t.id);
-                    saveTier(t.id);
+                    setTier(k.id);
+                    saveTier(k.id);
                   }}
                   className={`flex-1 rounded border px-2 py-1.5 text-left text-xs ${
-                    tier === t.id ? 'border-accent bg-accent/12' : 'border-line'
+                    tier === k.id ? 'border-accent bg-accent/12' : 'border-line'
                   }`}
                 >
-                  <div className="font-medium">{t.label}</div>
-                  <div className="text-dim">{t.hint}</div>
+                  <div className="font-medium">{t(k.label)}</div>
+                  <div className="text-dim">{t(k.hint)}</div>
                 </button>
               ))}
             </div>
-            <p className="mt-2 text-[11px] text-dim">
-              A free key allows roughly ten requests a minute. Two hours of your own speech needs about six hundred —
-              which is why the microphone should stay pinned and only the room audio should use Gemini.
-            </p>
+            <p className="mt-2 text-[11px] text-dim">{t('quotaNote')}</p>
 
-            {/* Жёсткий потолок. Бюджетные уведомления Google приходят
-                постфактум и ничего не останавливают — единственная защита
-                от залипшего цикла та, что стоит в самом приложении. */}
+            {/* Жёсткий потолок. Уведомления Google приходят постфактум
+                и ничего не останавливают. */}
             <div className="mt-3 flex items-center gap-2">
-              <span className="text-xs text-dim">Never send more than</span>
+              <span className="text-xs text-dim">{t('capLabel')}</span>
               <input
                 type="number"
                 min={10}
@@ -243,84 +233,63 @@ export function SetupWizard({ onDone }: { onDone: (p: MeetingProfile) => void })
                   setCap(v);
                   saveCap(v);
                 }}
-                className="w-24 rounded border border-line bg-ink px-2 py-1 text-sm outline-none focus:border-accent"
+                className="field w-24"
               />
               <span className="text-xs text-dim">
-                requests — a hard stop, roughly ${(cap * 0.0008).toFixed(2)}
+                {t('capSuffix')} {usd(cap * GEMINI.ESTIMATED_USD_PER_REQUEST)}
               </span>
             </div>
-            <p className="mt-1 text-[11px] text-dim">
-              This is the only limit that actually stops anything. Google&apos;s budget alerts arrive after the fact.
-              For a second line of defence, set a quota override on the project in the Cloud console.
-            </p>
+            <p className="mt-1 text-[11px] text-dim">{t('capNote')}</p>
           </div>
         </Section>
       ) : null}
 
-      <Section title="Preflight">
-        <Check
-          ok={fatal.length === 0}
-          label="Profile is consistent"
-          detail={fatal.map((f) => f.message).join(' ')}
-        />
+      <Section title={t('preflight')}>
+        <Check ok={fatal.length === 0} label={t('checkProfile')} detail={fatal.map((f) => t(f.key)).join(' ')} />
         {usesPin ? (
           <>
-            <Check ok={webSpeechSupported()} label="Web Speech available" detail="Needed for pinned channels." />
-            <Check ok={translatorSupported()} label="Translator API available" detail="On-device translation." />
+            <Check ok={webSpeechSupported()} label={t('checkWebSpeech')} detail={t('checkWebSpeechHint')} />
+            <Check ok={translatorSupported()} label={t('checkTranslator')} detail={t('checkTranslatorHint')} />
             <div className="mt-2 space-y-1">
               {pairs.map(({ from, to }) => {
                 const key = `${from}>${to}`;
-                const st = packs[key] ?? '…';
-                const ready = st === 'available';
+                const ready = packs[key] === 'available';
                 return (
                   <div key={key} className="flex items-center gap-2 text-xs">
                     <span className={ready ? 'text-ok' : 'text-warn'}>{ready ? '✓' : '•'}</span>
                     <span className="font-mono">
                       {from} → {to}
                     </span>
-                    <span className="text-dim">{st}</span>
+                    <span className="text-dim">{packs[key] ?? '…'}</span>
                     {!ready ? (
-                      <button
-                        onClick={() => void downloadPack(from, to)}
-                        className="rounded border border-line px-1.5 py-0.5"
-                      >
-                        Download
+                      <button onClick={() => void downloadPack(from, to)} className="btn btn-sm">
+                        {t('download')}
                       </button>
                     ) : null}
                   </div>
                 );
               })}
-              <p className="pt-1 text-[11px] text-dim">
-                Download one pack at a time — each needs its own click, that is a browser rule.
-              </p>
+              <p className="pt-1 text-[11px] text-dim">{t('packOneAtATime')}</p>
             </div>
           </>
         ) : null}
-        {keyNeeded ? <Check ok={apiKey.length > 10} label="Gemini key entered" /> : null}
-        <Check
-          ok
-          label="Share the WINDOW, not the screen"
-          detail="Sharing the whole screen shows the audience your log, and you would not notice."
-        />
+        {keyNeeded ? <Check ok={apiKey.length > 10} label={t('checkKey')} /> : null}
+        <Check ok label={t('checkShare')} detail={t('checkShareHint')} />
       </Section>
 
       {advice.length ? (
-        <Section title="Worth knowing">
+        <Section title={t('worthKnowing')}>
           {advice.map((a, i) => (
-            <p key={i} className="mb-2 border-l-2 border-warn pl-2 text-xs text-dim">
-              {a.message}
+            <p key={i} className="hint mb-2">
+              {t(a.key)}
             </p>
           ))}
         </Section>
       ) : null}
 
       <div className="sticky bottom-0 mt-6 flex gap-2 bg-ink py-3">
-        <button
-          onClick={() => onDone(profile)}
-          disabled={fatal.length > 0}
-          className="rounded bg-accent px-4 py-2 text-sm font-semibold text-black disabled:opacity-40"
-        >
-          Start
+        <button onClick={() => onDone(profile)} disabled={fatal.length > 0} className="btn btn-primary px-4 py-2">
+          {t('start')}
         </button>
       </div>
     </main>
@@ -329,7 +298,7 @@ export function SetupWizard({ onDone }: { onDone: (p: MeetingProfile) => void })
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="mt-6 rounded-xl border border-line bg-panel p-4">
+    <section className="surface mt-6 p-4">
       <h2 className="mb-3 text-sm font-semibold">{title}</h2>
       {children}
     </section>
@@ -345,29 +314,16 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-function LangPicker({
-  selected,
-  onToggle,
-  single,
-}: {
-  selected: Lang[];
-  onToggle: (l: Lang) => void;
-  single?: boolean;
-}) {
+function LangPicker({ selected, onToggle }: { selected: Lang[]; onToggle: (l: Lang) => void }) {
   return (
     <div className="flex flex-wrap gap-1.5">
       {ALL_LANGS.map((l) => (
         <button
           key={l}
           onClick={() => onToggle(l)}
-          className={`rounded-full border px-3 py-1 text-xs ${
-            selected.includes(l)
-              ? 'border-accent bg-accent/15 text-fg'
-              : 'border-line text-dim'
-          }`}
+          className={`chip ${selected.includes(l) ? 'chip-on' : ''}`}
         >
           {LANG_NAMES[l]}
-          {single && selected.includes(l) ? ' ✓' : ''}
         </button>
       ))}
     </div>
@@ -385,21 +341,22 @@ function ModePicker({
   mode: MeetingProfile['presenterMode'];
   onChange: (m: MeetingProfile['presenterMode']) => void;
 }) {
+  const t = useT();
   return (
     <div className="rounded-lg border border-line p-2">
       <div className="mb-1.5 text-xs font-medium">{title}</div>
       <div className="flex gap-1.5">
         <button
           onClick={() => onChange({ kind: 'pin', current: langs[0] ?? 'en' })}
-          className={`flex-1 rounded px-2 py-1 text-xs ${mode.kind === 'pin' ? 'bg-accent font-semibold text-black' : 'border border-line'}`}
+          className={`btn btn-sm flex-1 ${mode.kind === 'pin' ? 'btn-on' : ''}`}
         >
-          Pin
+          {t('modePin')}
         </button>
         <button
           onClick={() => onChange({ kind: 'auto' })}
-          className={`flex-1 rounded px-2 py-1 text-xs ${mode.kind === 'auto' ? 'bg-accent font-semibold text-black' : 'border border-line'}`}
+          className={`btn btn-sm flex-1 ${mode.kind === 'auto' ? 'btn-on' : ''}`}
         >
-          Auto
+          {t('modeAuto')}
         </button>
       </div>
       {mode.kind === 'pin' ? (
@@ -408,9 +365,9 @@ function ModePicker({
             <button
               key={l}
               onClick={() => onChange({ kind: 'pin', current: l })}
-              className={`rounded px-1.5 py-0.5 text-[11px] ${mode.current === l ? 'bg-line' : 'text-dim'}`}
+              className={`btn btn-sm ${mode.current === l ? 'btn-on' : ''}`}
             >
-              {l.toUpperCase()}
+              {LANG_NAMES[l]}
             </button>
           ))}
         </div>
