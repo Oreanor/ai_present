@@ -58,21 +58,28 @@ export default function ControlPage() {
 
   // --- инициализация ------------------------------------------------------
 
+  /** Лимиты зависят от тарифа ключа, а API их не сообщает — берём
+   *  из настроек. Ошибиться здесь значит ловить 429 на первых репликах. */
+  const applyQuotaLimits = useCallback(() => {
+    const tier = KEY_TIERS.find((x) => x.id === loadTier()) ?? KEY_TIERS[0];
+    quota.setLimits(tier.rpm, tier.rpd, loadCap());
+  }, []);
+
+  // Строго один раз. Зависимость от `wizard` здесь была ошибкой: открытие
+  // настроек перезапускало эффект, тот заново вычислял wizard из наличия
+  // профиля и немедленно закрывал их обратно.
   useEffect(() => {
     hydrateStore();
     initUiPrefs();
     setWizard(loadProfile() === null);
     void useStore.getState().restoreLog();
-    // Лимиты зависят от тарифа ключа, а API их не сообщает — берём
-    // из настроек. Ошибиться здесь значит ловить 429 на первых репликах.
-    const tier = KEY_TIERS.find((x) => x.id === loadTier()) ?? KEY_TIERS[0];
-    quota.setLimits(tier.rpm, tier.rpd, loadCap());
+    applyQuotaLimits();
     setReady(true);
     const off = quota.subscribe(setUsed);
     return () => {
       off();
     };
-  }, [wizard]);
+  }, [applyQuotaLimits]);
 
   useEffect(() => {
     const id = setInterval(() => setElapsed((v) => v + 1), 1000);
@@ -151,6 +158,8 @@ export default function ControlPage() {
       <SetupWizard
         onDone={(p) => {
           useStore.getState().setProfile(p);
+          // Тариф и потолок могли поменяться прямо в мастере.
+          applyQuotaLimits();
           setWizard(false);
         }}
       />
