@@ -11,13 +11,14 @@ import { exportAll, download, flaggedMarkdown, fullMarkdown } from '@/lib/export
 import { extractTerms } from '@/lib/glossary';
 import { attachHotkeys, HOTKEY_HELP, type Command } from '@/lib/hotkeys';
 import { openDeck, PageRenderer, type Deck } from '@/lib/pdf';
-import { modeLabel } from '@/lib/profile';
+import { modeLabel, requiredPairs } from '@/lib/profile';
+import { getTranslator, pairAvailability } from '@/lib/speech/translator';
 import { createProvider, planChannels, type ProviderId } from '@/lib/speech/registry';
 import type { SpeechProvider } from '@/lib/speech/types';
 import { quota } from '@/lib/speech/gemini-provider';
 import { fingerprint, loadProfile } from '@/lib/storage';
 import { hydrateStore, useStore } from '@/lib/store';
-import { LANG_NAMES, type Mode, type Speaker } from '@/lib/types';
+import { LANG_NAMES, type MeetingProfile, type Mode, type Speaker } from '@/lib/types';
 import { arrange, openPresentation } from '@/lib/windows';
 
 /**
@@ -559,6 +560,8 @@ function Menu({
           </div>
         </Group>
 
+        <PackList profile={state.profile} />
+
         <Group label="Rehearse without a microphone">
           <button
             className={item}
@@ -615,6 +618,62 @@ function Menu({
         </Group>
       </div>
     </>
+  );
+}
+
+/**
+ * Языковые пакеты прямо в меню. Раньше они жили только в мастере первого
+ * запуска, и это оказалось главной причиной, по которой перевод молча
+ * не работал: скачивание требует свежего клика, а из колбэка распознавания
+ * его нет. Здесь клик есть.
+ */
+function PackList({ profile }: { profile: MeetingProfile }) {
+  const pairs = requiredPairs(profile);
+  const [status, setStatus] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const next: Record<string, string> = {};
+      for (const { from, to } of pairs) next[`${from}>${to}`] = await pairAvailability(from, to);
+      if (!cancelled) setStatus((prev) => ({ ...next, ...prev }));
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [JSON.stringify(pairs)]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const pending = pairs.filter(({ from, to }) => status[`${from}>${to}`] !== 'available');
+  if (!pending.length) return null;
+
+  return (
+    <Group label="Translation packs — download before you start, one click each">
+      {pending.map(({ from, to }) => {
+        const key = `${from}>${to}`;
+        return (
+          <div key={key} className="flex items-center gap-2 px-2 py-0.5 text-xs">
+            <span className="font-mono">
+              {from} → {to}
+            </span>
+            <span className="text-dim">{status[key] ?? '…'}</span>
+            <button
+              onClick={async () => {
+                setStatus((p) => ({ ...p, [key]: 'downloading' }));
+                try {
+                  await getTranslator(from, to);
+                  setStatus((p) => ({ ...p, [key]: 'available' }));
+                } catch (e) {
+                  setStatus((p) => ({ ...p, [key]: e instanceof Error ? e.name : 'error' }));
+                }
+              }}
+              className="ml-auto rounded border border-line px-1.5 py-0.5"
+            >
+              Download
+            </button>
+          </div>
+        );
+      })}
+    </Group>
   );
 }
 
