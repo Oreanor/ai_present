@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { ALL_LANGS, LANG_NAMES, type Lang, type MeetingProfile } from '@/lib/types';
 import { PRESETS, needsApiKey, requiredPairs, validateProfile } from '@/lib/profile';
-import { loadApiKey, loadProfile, saveApiKey } from '@/lib/storage';
+import { loadApiKey, loadProfile, loadTier, saveApiKey, saveTier } from '@/lib/storage';
 import { pairAvailability, getTranslator, translatorSupported } from '@/lib/speech/translator';
 import { webSpeechSupported } from '@/lib/speech/free-provider';
 
@@ -15,12 +15,23 @@ import { webSpeechSupported } from '@/lib/speech/free-provider';
  * неприменимые пункты не показываются вовсе — пользователь не должен
  * гадать, почему у него красный крест на том, чем он не пользуется.
  */
+/** Лимиты сильно отличаются по тарифам, и от них зависит, с какой частотой
+ *  вообще можно слать. Спрашиваем прямо, а не угадываем. */
+export const KEY_TIERS = [
+  { id: 'free', label: 'Free', hint: '~10 req/min, ~250 a day', rpm: 10, rpd: 250 },
+  { id: 'paid', label: 'Billing enabled', hint: 'hundreds per minute', rpm: 150, rpd: 100_000 },
+] as const;
+
 export function SetupWizard({ onDone }: { onDone: (p: MeetingProfile) => void }) {
   const [profile, setProfile] = useState<MeetingProfile>(() => loadProfile() ?? PRESETS[0].profile);
   const [apiKey, setApiKey] = useState('');
+  const [tier, setTier] = useState<string>('free');
   const [packs, setPacks] = useState<Record<string, string>>({});
 
-  useEffect(() => setApiKey(loadApiKey()), []);
+  useEffect(() => {
+    setApiKey(loadApiKey());
+    setTier(loadTier());
+  }, []);
 
   const problems = validateProfile(profile);
   const fatal = problems.filter((p) => p.fatal);
@@ -187,6 +198,34 @@ export function SetupWizard({ onDone }: { onDone: (p: MeetingProfile) => void })
             placeholder="AIza…"
             className="w-full rounded border border-line bg-ink px-2 py-1.5 text-sm outline-none focus:border-accent"
           />
+
+          {/* Первым упирается минутный лимит, а не суточный. Без верного
+              значения провайдер шлёт быстрее, чем ключ разрешает, и ловит
+              429 на первых же репликах. */}
+          <div className="mt-3">
+            <div className="mb-1.5 text-xs text-dim">What kind of key is it?</div>
+            <div className="flex gap-2">
+              {KEY_TIERS.map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => {
+                    setTier(t.id);
+                    saveTier(t.id);
+                  }}
+                  className={`flex-1 rounded border px-2 py-1.5 text-left text-xs ${
+                    tier === t.id ? 'border-accent bg-accent/12' : 'border-line'
+                  }`}
+                >
+                  <div className="font-medium">{t.label}</div>
+                  <div className="text-dim">{t.hint}</div>
+                </button>
+              ))}
+            </div>
+            <p className="mt-2 text-[11px] text-dim">
+              A free key allows roughly ten requests a minute. Two hours of your own speech needs about six hundred —
+              which is why the microphone should stay pinned and only the room audio should use Gemini.
+            </p>
+          </div>
         </Section>
       ) : null}
 

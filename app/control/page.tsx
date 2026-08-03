@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { AnnotationLayer } from '@/components/AnnotationLayer';
 import { ChatLog } from '@/components/ChatLog';
 import { SlideCanvas, type SlideRect } from '@/components/SlideCanvas';
-import { SetupWizard } from '@/components/SetupWizard';
+import { KEY_TIERS, SetupWizard } from '@/components/SetupWizard';
 import { SIDE_MIN_FRACTION, sideRoom } from '@/components/CaptionColumn';
 import { getBus, type BusMessage } from '@/lib/bus';
 import { exportAll, download, flaggedMarkdown, fullMarkdown } from '@/lib/export';
@@ -16,7 +16,7 @@ import { getTranslator, pairAvailability } from '@/lib/speech/translator';
 import { createProvider, planChannels, type ProviderId } from '@/lib/speech/registry';
 import type { SpeechProvider } from '@/lib/speech/types';
 import { quota } from '@/lib/speech/gemini-provider';
-import { fingerprint, loadProfile } from '@/lib/storage';
+import { fingerprint, loadProfile, loadTier } from '@/lib/storage';
 import { hydrateStore, useStore } from '@/lib/store';
 import { LANG_NAMES, type MeetingProfile, type Mode, type Speaker } from '@/lib/types';
 import { arrange, openPresentation } from '@/lib/windows';
@@ -55,12 +55,16 @@ export default function ControlPage() {
     hydrateStore();
     setWizard(loadProfile() === null);
     void useStore.getState().restoreLog();
+    // Лимиты зависят от тарифа ключа, а API их не сообщает — берём
+    // из настроек. Ошибиться здесь значит ловить 429 на первых репликах.
+    const t = KEY_TIERS.find((x) => x.id === loadTier()) ?? KEY_TIERS[0];
+    quota.setLimits(t.rpm, t.rpd);
     setReady(true);
     const off = quota.subscribe(setUsed);
     return () => {
       off();
     };
-  }, []);
+  }, [wizard]);
 
   const snapshot = useStore((st) => st.snapshot);
   useEffect(() => {

@@ -14,19 +14,69 @@ import { uid, type Capabilities, type SpeechProvider, type StartOptions } from '
 const MODEL = 'gemini-2.5-flash';
 const ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
 
-/** Счётчик расхода — суточный лимит free tier это главное ограничение (§4). */
+/**
+ * Ограничитель частоты. У бесплатного тарифа лимитов три, и первым
+ * упирается НЕ суточный, а минутный: около 10–15 запросов в минуту.
+ * Речь режется на реплики быстрее, поэтому без учёта RPM провайдер
+ * выжигает минутный лимит за секунды и получает 429, который легко
+ * принять за исчерпание дневной квоты.
+ */
 export const quota = {
   used: 0,
+  /** Запросов в минуту. Free tier ~10, платный Tier 1 — сотни. */
+  rpm: 10,
+  /** Запросов в сутки. Free tier ~250. */
+  rpd: 250,
+  /** Метки времени отправленных запросов за последнюю минуту. */
+  recent: [] as number[],
   listeners: new Set<(n: number) => void>(),
-  bump() {
+
+  setLimits(rpm: number, rpd: number) {
+    this.rpm = rpm;
+    this.rpd = rpd;
+  },
+
+  /** Сколько ещё можно отправить прямо сейчас, не упираясь в минутный лимит. */
+  slotsLeft(): number {
+    const now = Date.now();
+    this.recent = this.recent.filter((t) => now - t < 60_000);
+    return Math.max(0, this.rpm - this.recent.length);
+  },
+
+  /** Через сколько миллисекунд освободится слот. */
+  waitMs(): number {
+    if (this.slotsLeft() > 0) return 0;
+    return Math.max(0, 60_000 - (Date.now() - this.recent[0]) + 50);
+  },
+
+  take() {
+    this.recent.push(Date.now());
     this.used += 1;
     for (const l of this.listeners) l(this.used);
   },
+
+  dayExhausted(): boolean {
+    return this.used >= this.rpd;
+  },
+
+  reset() {
+    this.used = 0;
+    this.recent = [];
+    for (const l of this.listeners) l(0);
+  },
+
   subscribe(fn: (n: number) => void) {
     this.listeners.add(fn);
     return () => this.listeners.delete(fn);
   },
 };
+
+/** Google кладёт рекомендованную паузу в тело ошибки. Уважать её дешевле,
+ *  чем угадывать: слепые ретраи только усугубляют 429. */
+function retryDelayMs(body: string): number | null {
+  const m = /"retryDelay"\s*:\s*"(\d+(?:\.\d+)?)s"/.exec(body);
+  return m ? Math.ceil(parseFloat(m[1]) * 1000) : null;
+}
 
 type GeminiJson = { lang: string; text: string } & Record<string, string>;
 
@@ -62,7 +112,7 @@ export class GeminiChunkProvider implements SpeechProvider {
   private t0 = 0;
   private pinned: Lang | null = null;
   private inflight = 0;
-  private lastSentAt = 0;
+  private dayWarned = false;
 
   async start(opts: StartOptions): Promise<void> {
     this.opts = opts;
@@ -111,15 +161,29 @@ export class GeminiChunkProvider implements SpeechProvider {
     const opts = this.opts;
     if (!opts) return;
 
-    // Клиентский rate limiting: залипший VAD способен сжечь суточный лимит
-    // за минуту, и это одинаково верно для обеих целей сборки (§5).
-    const now = performance.now();
-    if (this.inflight >= 3 || now - this.lastSentAt < 400) return;
-    this.lastSentAt = now;
+    if (quota.dayExhausted()) {
+      if (!this.dayWarned) {
+        this.dayWarned = true;
+        opts.onError(new Error('Gemini daily quota is used up. Switch this channel to a pinned language, or upgrade the key.'));
+      }
+      return;
+    }
+
+    // Ждём свободный слот вместо того, чтобы выбрасывать реплику: лог
+    // терпит задержку, а потерянный вопрос из зала не восстановить.
+    // Ждём не дольше половины минуты — позже реплика всё равно неактуальна.
+    const wait = quota.waitMs();
+    if (wait > 0) {
+      if (wait > 30_000 || this.inflight >= 2) return;
+      await new Promise((r) => setTimeout(r, wait));
+      if (!this.opts) return;
+    }
+
+    quota.take();
     this.inflight += 1;
 
     const id = uid('g');
-    const offsetMs = Math.round(now - this.t0);
+    const offsetMs = Math.round(performance.now() - this.t0);
     const sources = this.pinned ? [this.pinned] : opts.sourceLang;
 
     try {
@@ -139,15 +203,30 @@ export class GeminiChunkProvider implements SpeechProvider {
         generationConfig: { responseMimeType: 'application/json', temperature: 0 },
       };
 
-      const res = await this.request(body);
-      quota.bump();
+      let res = await this.request(body);
+
+      // 429 бывает двух разных видов, и путать их нельзя: минутный лимит
+      // проходит сам через несколько секунд, суточный означает конец сессии.
+      if (res.status === 429) {
+        const text = await res.text();
+        const perDay = /per day|PerDay|RPD/i.test(text);
+        if (perDay) {
+          quota.used = quota.rpd;
+          throw new Error('Gemini daily quota is used up. Switch this channel to a pinned language, or upgrade the key.');
+        }
+        const delay = Math.min(retryDelayMs(text) ?? 4000, 20_000);
+        opts.onStatus('reconnecting');
+        await new Promise((r) => setTimeout(r, delay));
+        if (!this.opts) return;
+        res = await this.request(body);
+        opts.onStatus('listening');
+      }
 
       if (!res.ok) {
         const text = await res.text();
-        // 429 показываем по-человечески, а не кодом (§8).
         throw new Error(
           res.status === 429
-            ? 'Gemini daily quota exhausted. Switching this channel to pinned on-device mode.'
+            ? 'Gemini is rate limiting this key. Free keys allow about 10 requests a minute.'
             : `Gemini error ${res.status}: ${text.slice(0, 200)}`,
         );
       }

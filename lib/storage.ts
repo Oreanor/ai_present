@@ -9,6 +9,7 @@ const K = {
   profile: 'aip.profile',
   captions: 'aip.captions',
   apiKey: 'aip.geminiKey',
+  tier: 'aip.geminiTier',
   glossary: 'aip.glossary',
   annPrefix: 'aip.ann.',
 };
@@ -43,6 +44,14 @@ export const saveApiKey = (k: string) => {
   if (typeof localStorage === 'undefined') return;
   if (k) localStorage.setItem(K.apiKey, k);
   else localStorage.removeItem(K.apiKey);
+};
+
+/** Тариф ключа: от него зависит допустимая частота запросов, а не только
+ *  суточный объём. Угадать его нельзя — API его не сообщает. */
+export const loadTier = (): string =>
+  typeof localStorage === 'undefined' ? 'free' : (localStorage.getItem(K.tier) ?? 'free');
+export const saveTier = (t: string) => {
+  if (typeof localStorage !== 'undefined') localStorage.setItem(K.tier, t);
 };
 
 export const loadGlossary = () => readJSON<{ from: string; to: string }[]>(K.glossary) ?? [];
