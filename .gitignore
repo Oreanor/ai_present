@@ -1,0 +1,14 @@
+node_modules/
+.next/
+out/
+next-env.d.ts
+*.tsbuildinfo
+
+# Ключи и локальные настройки
+.env
+.env.local
+.env*.local
+
+# Сгенерированные артефакты
+public/pdf.worker.mjs
+test-deck.pdf

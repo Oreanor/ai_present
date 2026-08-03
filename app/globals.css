@@ -1,0 +1,52 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-ink: #0d0f14;
+  --color-panel: #161a22;
+  --color-line: #262c38;
+  --color-fg: #e7e9ef;
+  --color-dim: #8f98ab;
+  --color-accent: #6aa8ff;
+  --color-ok: #3ecf8e;
+  --color-warn: #e3b341;
+  --color-err: #f26d6d;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background: var(--color-ink);
+  color: var(--color-fg);
+  font-family:
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    sans-serif;
+  overscroll-behavior: none;
+}
+
+/* Окно Presentation: ничего лишнего, чёрный фон, курсор прячется в покое. */
+body[data-window='present'] {
+  background: #000;
+  overflow: hidden;
+  user-select: none;
+}
+
+.idle-cursor {
+  cursor: none;
+}
+
+::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-line);
+  border-radius: 9px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}

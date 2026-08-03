@@ -1,0 +1,364 @@
+'use client';
+
+import { create } from 'zustand';
+import type {
+  Annotations,
+  CaptionSettings,
+  ChannelStatus,
+  Entry,
+  Lang,
+  MeetingProfile,
+  Mode,
+  PresentationState,
+  Shape,
+  ShapeKind,
+  Speaker,
+  Utterance,
+} from './types';
+import { DEFAULT_PROFILE, cycleLang, targetsFor } from './profile';
+import { applyGlossary, type GlossaryEntry } from './glossary';
+import { PALETTE, nextShapeKind } from './shapes';
+import * as storage from './storage';
+
+const DEFAULT_CAPTIONS: CaptionSettings = {
+  layout: 'reserve',
+  fontSize: 40,
+  bandHeight: 22,
+  color: '#ffffff',
+  background: 'rgba(0,0,0,0.62)',
+  visible: true,
+  showAudience: true,
+};
+
+export type CaptionLine = { text: string; final: boolean; speaker: Speaker; at: number };
+
+type State = {
+  profile: MeetingProfile;
+  captions: CaptionSettings;
+  glossary: GlossaryEntry[];
+
+  slideIndex: number;
+  slideCount: number;
+  deckAspect: number;
+  docId: string;
+
+  annotations: Annotations;
+  shapeKind: ShapeKind;
+  shapeColor: string;
+
+  entries: Entry[];
+  captionLine: CaptionLine | null;
+
+  mode: Mode;
+  presenterStatus: ChannelStatus;
+  audienceStatus: ChannelStatus;
+  toast: { text: string; kind: 'info' | 'warn' | 'error' } | null;
+
+  // --- действия ---
+  setProfile(p: MeetingProfile): void;
+  setCaptions(patch: Partial<CaptionSettings>): void;
+  setGlossary(g: GlossaryEntry[]): void;
+
+  setDeck(docId: string, count: number, aspect: number): void;
+  goto(index: number): void;
+  move(delta: number): void;
+
+  addShape(s: Shape): void;
+  removeShape(id: string): void;
+  undoShape(): void;
+  clearShapes(all?: boolean): void;
+  setShapeKind(k: ShapeKind): void;
+  setShapeColor(c: string): void;
+  cycleShapeKind(): void;
+
+  ingest(u: Utterance, speaker: Speaker, isFinal: boolean): void;
+  applyTranslation(id: string, lang: Lang, text: string): void;
+  editEntry(id: string, lang: Lang | 'orig', text: string): void;
+  toggleFlag(id: string): void;
+  flagLast(): void;
+  clearLog(): void;
+  restoreLog(): Promise<void>;
+
+  setMode(m: Mode): void;
+  cycleMode(): void;
+  setStatus(ch: Speaker, s: ChannelStatus): void;
+  cyclePresenterLang(): Lang | null;
+  toast_(text: string, kind?: 'info' | 'warn' | 'error'): void;
+
+  snapshot(): PresentationState;
+};
+
+export const useStore = create<State>((set, get) => ({
+  profile: DEFAULT_PROFILE,
+  captions: DEFAULT_CAPTIONS,
+  glossary: [],
+
+  slideIndex: 0,
+  slideCount: 0,
+  deckAspect: 16 / 9,
+  docId: '',
+
+  annotations: {},
+  shapeKind: 'rect',
+  shapeColor: PALETTE[0].value,
+
+  entries: [],
+  captionLine: null,
+
+  mode: 'presenting',
+  presenterStatus: 'idle',
+  audienceStatus: 'idle',
+  toast: null,
+
+  setProfile(p) {
+    storage.saveProfile(p);
+    set({ profile: p });
+  },
+
+  setCaptions(patch) {
+    const captions = { ...get().captions, ...patch };
+    storage.saveCaptionSettings(captions);
+    set({ captions });
+  },
+
+  setGlossary(g) {
+    storage.saveGlossary(g);
+    set({ glossary: g });
+  },
+
+  setDeck(docId, count, aspect) {
+    set({
+      docId,
+      slideCount: count,
+      deckAspect: aspect,
+      slideIndex: 0,
+      annotations: storage.loadAnnotations(docId),
+    });
+  },
+
+  goto(index) {
+    const { slideCount } = get();
+    if (slideCount === 0) return;
+    set({ slideIndex: Math.max(0, Math.min(slideCount - 1, index)) });
+  },
+
+  move(delta) {
+    get().goto(get().slideIndex + delta);
+  },
+
+  addShape(s) {
+    const { annotations, slideIndex, docId } = get();
+    const list = [...(annotations[slideIndex] ?? []), s];
+    const next = { ...annotations, [slideIndex]: list };
+    storage.saveAnnotations(docId, next);
+    set({ annotations: next });
+  },
+
+  removeShape(id) {
+    const { annotations, slideIndex, docId } = get();
+    const list = (annotations[slideIndex] ?? []).filter((s) => s.id !== id);
+    const next = { ...annotations, [slideIndex]: list };
+    storage.saveAnnotations(docId, next);
+    set({ annotations: next });
+  },
+
+  /** Правая кнопка: снимает последнюю фигуру, до нуля и дальше без ошибки. */
+  undoShape() {
+    const { annotations, slideIndex, docId } = get();
+    const list = annotations[slideIndex] ?? [];
+    if (!list.length) return;
+    const next = { ...annotations, [slideIndex]: list.slice(0, -1) };
+    storage.saveAnnotations(docId, next);
+    set({ annotations: next });
+  },
+
+  clearShapes(all) {
+    const { annotations, slideIndex, docId } = get();
+    const next = all ? {} : { ...annotations, [slideIndex]: [] };
+    storage.saveAnnotations(docId, next);
+    set({ annotations: next });
+  },
+
+  setShapeKind(k) {
+    set({ shapeKind: k });
+  },
+  setShapeColor(c) {
+    set({ shapeColor: c });
+  },
+  cycleShapeKind() {
+    set({ shapeKind: nextShapeKind(get().shapeKind) });
+  },
+
+  /**
+   * Приём реплики. Обе стенограммы заполняются из texts напрямую —
+   * никакой логики «кто говорил, значит показать то-то» (§10).
+   */
+  ingest(u, speaker, isFinal) {
+    const { entries, profile, slideIndex, glossary, captions } = get();
+
+    const texts: Partial<Record<Lang, string>> = {};
+    for (const [lang, value] of Object.entries(u.texts)) {
+      if (value) texts[lang as Lang] = applyGlossary(value, glossary);
+    }
+    // Реплика на языке стенограммы попадает туда как оригинал, а не
+    // переводится сама в себя (§3а).
+    if (profile.transcriptLangs.includes(u.origLang)) texts[u.origLang] = applyGlossary(u.origText, glossary);
+
+    const existing = entries.findIndex((e) => e.id === u.id);
+    const entry: Entry = {
+      id: u.id,
+      ts: u.offsetMs,
+      slideIndex,
+      speaker,
+      origLang: u.origLang,
+      origText: u.origText,
+      texts: existing >= 0 ? { ...entries[existing].texts, ...texts } : texts,
+      isFinal,
+    };
+
+    let next: Entry[];
+    if (existing >= 0) {
+      if (entries[existing].edited) return; // ручную правку провайдер не перетирает
+      next = [...entries];
+      next[existing] = entry;
+    } else {
+      next = [...entries, entry];
+    }
+
+    // Полоса субтитров: всегда и только captionLang (§9).
+    const captionText = texts[profile.captionLang];
+    let line = get().captionLine;
+    const audienceSaidCaptionLang = speaker === 'audience' && u.origLang === profile.captionLang;
+    const allowed = speaker === 'presenter' || (captions.showAudience && !audienceSaidCaptionLang);
+
+    if (allowed && captionText) {
+      // Реплика зала старше 15 секунд уже неактуальна и только собьёт зал (§9).
+      const stale = speaker === 'audience' && u.durationMs !== undefined && performance.now() - u.offsetMs > 15_000;
+      if (!stale) line = { text: captionText, final: isFinal, speaker, at: performance.now() };
+    }
+
+    set({ entries: next, captionLine: line });
+    if (isFinal) void storage.persistEntries([entry]);
+  },
+
+  applyTranslation(id, lang, text) {
+    const { entries, profile, glossary } = get();
+    const i = entries.findIndex((e) => e.id === id);
+    if (i < 0) return;
+    if (entries[i].edited) return;
+
+    const value = applyGlossary(text, glossary);
+    const next = [...entries];
+    next[i] = { ...next[i], texts: { ...next[i].texts, [lang]: value } };
+
+    // Догоняющий перевод дорисовывает полосу, если ждали именно его.
+    let line = get().captionLine;
+    if (lang === profile.captionLang) {
+      const e = next[i];
+      const allowed =
+        e.speaker === 'presenter' || (get().captions.showAudience && e.origLang !== profile.captionLang);
+      if (allowed) line = { text: value, final: e.isFinal, speaker: e.speaker, at: performance.now() };
+    }
+
+    set({ entries: next, captionLine: line });
+    void storage.persistEntries([next[i]]);
+  },
+
+  editEntry(id, lang, text) {
+    const { entries } = get();
+    const i = entries.findIndex((e) => e.id === id);
+    if (i < 0) return;
+    const next = [...entries];
+    next[i] =
+      lang === 'orig'
+        ? { ...next[i], origText: text, edited: true }
+        : { ...next[i], texts: { ...next[i].texts, [lang]: text }, edited: true };
+    set({ entries: next });
+    void storage.persistEntries([next[i]]);
+  },
+
+  toggleFlag(id) {
+    const next = get().entries.map((e) => (e.id === id ? { ...e, flagged: !e.flagged } : e));
+    set({ entries: next });
+    const changed = next.find((e) => e.id === id);
+    if (changed) void storage.persistEntries([changed]);
+  },
+
+  flagLast() {
+    const finals = get().entries.filter((e) => e.isFinal);
+    const last = finals[finals.length - 1];
+    if (last) get().toggleFlag(last.id);
+  },
+
+  clearLog() {
+    void storage.clearEntries();
+    set({ entries: [], captionLine: null });
+  },
+
+  async restoreLog() {
+    const entries = await storage.restoreEntries();
+    if (entries.length) set({ entries });
+  },
+
+  setMode(m) {
+    set({ mode: m });
+  },
+  cycleMode() {
+    const order: Mode[] = ['presenting', 'qa', 'both'];
+    set({ mode: order[(order.indexOf(get().mode) + 1) % order.length] });
+  },
+
+  setStatus(ch, s) {
+    set(ch === 'presenter' ? { presenterStatus: s } : { audienceStatus: s });
+  },
+
+  /** Клавиша L. Работает только в режиме pin — в auto переключать нечего. */
+  cyclePresenterLang() {
+    const { profile } = get();
+    if (profile.presenterMode.kind !== 'pin') return null;
+    const next = cycleLang(profile.presenterLangs, profile.presenterMode.current);
+    get().setProfile({ ...profile, presenterMode: { kind: 'pin', current: next } });
+    return next;
+  },
+
+  toast_(text, kind = 'info') {
+    set({ toast: { text, kind } });
+    setTimeout(() => {
+      if (get().toast?.text === text) set({ toast: null });
+    }, 5000);
+  },
+
+  snapshot() {
+    const s = get();
+    return {
+      slideIndex: s.slideIndex,
+      slideCount: s.slideCount,
+      captions: s.captions,
+      shapes: s.annotations[s.slideIndex] ?? [],
+      shapeKind: s.shapeKind,
+      shapeColor: s.shapeColor,
+      status: s.mode === 'qa' ? s.audienceStatus : s.presenterStatus,
+      captionLine: s.captionLine
+        ? { text: s.captionLine.text, final: s.captionLine.final, speaker: s.captionLine.speaker }
+        : null,
+    };
+  },
+}));
+
+/** Языки, в которые надо перевести реплику. Экспорт для провайдеров. */
+export function currentTargets(origLang: Lang): Lang[] {
+  return targetsFor(useStore.getState().profile, origLang);
+}
+
+/** Гидратация из localStorage. Вызывается один раз на клиенте: делать это
+ *  в initial state нельзя — сервер и клиент разошлись бы разметкой. */
+export function hydrateStore(): void {
+  const profile = storage.loadProfile();
+  const captions = storage.loadCaptionSettings<CaptionSettings>();
+  const glossary = storage.loadGlossary();
+  useStore.setState({
+    ...(profile ? { profile } : {}),
+    ...(captions ? { captions: { ...DEFAULT_CAPTIONS, ...captions } } : {}),
+    ...(glossary.length ? { glossary } : {}),
+  });
+}

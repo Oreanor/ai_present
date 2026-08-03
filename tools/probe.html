@@ -1,0 +1,749 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Пробник окружения — presenter live captions</title>
+<style>
+  :root {
+    --bg: #0f1115; --panel: #171a21; --line: #262b36; --fg: #e6e8ee;
+    --dim: #949cad; --ok: #3ecf8e; --warn: #e3b341; --err: #f26d6d; --accent: #6aa8ff;
+    --mono: ui-monospace, "Cascadia Code", Consolas, monospace;
+  }
+  @media (prefers-color-scheme: light) {
+    :root { --bg:#f6f7f9; --panel:#fff; --line:#e2e5ea; --fg:#1a1d23; --dim:#6b7280; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg);
+         font:14px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif; padding:24px; }
+  .wrap { max-width: 980px; margin: 0 auto; }
+  h1 { font-size:20px; margin:0 0 4px; }
+  .sub { color:var(--dim); margin:0 0 20px; }
+  section { background:var(--panel); border:1px solid var(--line);
+            border-radius:10px; padding:16px 18px; margin-bottom:14px; }
+  h2 { font-size:15px; margin:0 0 4px; display:flex; align-items:center; gap:8px; }
+  .why { color:var(--dim); font-size:13px; margin:0 0 12px; }
+  button { background:var(--accent); color:#0b1220; border:0; border-radius:7px;
+           padding:8px 14px; font:inherit; font-weight:600; cursor:pointer; }
+  button:disabled { opacity:.45; cursor:default; }
+  button.ghost { background:transparent; color:var(--fg); border:1px solid var(--line); font-weight:500; }
+  input[type=password], input[type=text] {
+    background:var(--bg); color:var(--fg); border:1px solid var(--line);
+    border-radius:7px; padding:8px 10px; font:inherit; min-width:320px; }
+  .row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:10px; }
+  .badge { font-family:var(--mono); font-size:11px; padding:2px 7px; border-radius:5px;
+           border:1px solid var(--line); color:var(--dim); }
+  .badge.ok { color:var(--ok); border-color:color-mix(in srgb, var(--ok) 40%, transparent); }
+  .badge.warn { color:var(--warn); border-color:color-mix(in srgb, var(--warn) 40%, transparent); }
+  .badge.err { color:var(--err); border-color:color-mix(in srgb, var(--err) 40%, transparent); }
+  .out { font-family:var(--mono); font-size:12.5px; white-space:pre-wrap; word-break:break-word;
+         background:var(--bg); border:1px solid var(--line); border-radius:7px;
+         padding:10px 12px; margin-top:10px; max-height:340px; overflow:auto; }
+  .out:empty { display:none; }
+  .meter { height:8px; background:var(--bg); border:1px solid var(--line);
+           border-radius:99px; overflow:hidden; width:220px; }
+  .meter > i { display:block; height:100%; width:0; background:var(--ok); transition:width .08s; }
+  table { border-collapse:collapse; width:100%; font-size:13px; margin-top:8px; }
+  th,td { text-align:left; padding:6px 8px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { color:var(--dim); font-weight:600; }
+  code { font-family:var(--mono); font-size:12.5px; }
+  .note { border-left:3px solid var(--warn); padding:8px 12px; margin:10px 0 0;
+          background:color-mix(in srgb, var(--warn) 8%, transparent); font-size:13px; border-radius:0 6px 6px 0; }
+  #report { min-height:180px; width:100%; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>Пробник окружения</h1>
+<p class="sub">Этап&nbsp;0 из ТЗ. Проверяет всё, от чего зависит выбор архитектуры. Запускать <b>в том Chrome и на той машине</b>, где пойдёт презентация.</p>
+
+<section>
+  <h2>0. Контекст запуска <span id="b-ctx" class="badge">—</span></h2>
+  <p class="why">Открыт ли файл так, что браузер вообще пустит к микрофону. Если приложение планируется отдавать коллегам «двойным кликом по файлу», ответ здесь решает, возможно ли это.</p>
+  <div class="row"><button id="run-ctx">Проверить</button></div>
+  <div class="out" id="out-ctx"></div>
+</section>
+
+<section>
+  <h2>1. Chrome Translator API <span id="b-tr" class="badge">—</span></h2>
+  <p class="why">Перевод на устройстве. Нужен режиму <code>pin</code> — быстрому и безлимитному.
+     <b>Каждую пару жать отдельно</b>, скачивание пакета требует свежего клика.
+     Региональные варианты португальского не различаем: аудитория смешанная, базового <code>pt</code> достаточно.</p>
+  <div class="row" id="tr-buttons"></div>
+  <div class="row"><button class="ghost" id="tr-pivot">Пивот ru→en→pt</button></div>
+  <div class="out" id="out-tr"></div>
+</section>
+
+<section>
+  <h2>2. Web Speech API <span id="b-ws" class="badge">—</span></h2>
+  <p class="why">Распознавание для режима <code>pin</code>. Может быть отключено корпоративной политикой Chrome — это самый вероятный способ обрушить всю ветку. Скажите фразу на каждом языке.</p>
+  <div class="row">
+    <button class="ghost" data-ws="en-US">Сказать по-английски</button>
+    <button class="ghost" data-ws="ru-RU">по-русски</button>
+    <button class="ghost" data-ws="pt-PT">по-португальски</button>
+    <span id="ws-state" class="badge">ожидание</span>
+  </div>
+  <div class="out" id="out-ws"></div>
+</section>
+
+<section>
+  <h2>3. Системный звук <span id="b-ds" class="badge">—</span></h2>
+  <p class="why">Обратный канал. В диалоге Chrome выберите <b>«Весь экран»</b> и включите галочку <b>«Также передать системный звук»</b>. Включите заранее любое видео со звуком, иначе индикатор останется на нуле.</p>
+  <div class="row">
+    <button id="run-ds">Захватить</button>
+    <div class="meter"><i id="ds-level"></i></div>
+    <span id="ds-state" class="badge">—</span>
+  </div>
+  <div class="out" id="out-ds"></div>
+</section>
+
+<section>
+  <h2>4. Темп речи <span id="b-rate" class="badge">—</span></h2>
+  <p class="why">Сколько реплик вы производите в минуту. Умноженное на два часа, это число запросов к Gemini в режиме <code>auto</code>. Именно оно решает, жив ли <code>auto</code> на микрофоне вообще. Говорите как на презентации — 60 секунд.</p>
+  <div class="row">
+    <button id="run-rate">Записать 60 секунд</button>
+    <div class="meter"><i id="rate-level"></i></div>
+    <span id="rate-state" class="badge">—</span>
+  </div>
+  <div class="out" id="out-rate"></div>
+</section>
+
+<section>
+  <h2>5. Gemini: задержка и определение языка <span id="b-gm" class="badge">—</span></h2>
+  <p class="why">Ключ никуда не отправляется, кроме самого Google, и не сохраняется. Скажите одну фразу на любом языке — замеряется время от конца речи до готового JSON и проверяется, верно ли определён язык.</p>
+  <div class="row">
+    <input type="password" id="gm-key" placeholder="Gemini API key (AIza...)" autocomplete="off">
+    <button id="run-gm">Записать фразу и отправить</button>
+    <span id="gm-state" class="badge">—</span>
+  </div>
+  <div class="out" id="out-gm"></div>
+</section>
+
+<section>
+  <h2>Отчёт</h2>
+  <p class="why">Скопируйте и пришлите — из этого получится записка, на которой строится решение по этапам 2 и 3.</p>
+  <div class="row"><button id="copy">Скопировать в буфер</button><span id="copy-state" class="badge">—</span></div>
+  <div class="out" id="report">Запустите проверки выше.</div>
+</section>
+
+</div>
+<script>
+// ---------------------------------------------------------------------------
+// Общее
+// ---------------------------------------------------------------------------
+const results = {};
+const $ = id => document.getElementById(id);
+const log = (id, s) => { $(id).textContent = s; };
+const appendLog = (id, s) => { $(id).textContent += (($(id).textContent) ? '\n' : '') + s; };
+
+function badge(id, kind, text) {
+  const el = $(id);
+  el.className = 'badge ' + kind;
+  el.textContent = text;
+}
+
+// Профиль из ТЗ: ведущий en/ru/pt, зал pt/en, стенограммы en+pt.
+// Только базовые коды: аудитория смешанная (бразильцы + португальцы),
+// различать варианты смысла нет — см. §3а ТЗ.
+const PAIRS = [
+  ['en', 'pt'], ['ru', 'pt'], ['ru', 'en'], ['pt', 'en'],
+];
+const SAMPLE = {
+  en: 'Our deployment pipeline runs Kubernetes across three regions.',
+  ru: 'Наш конвейер развёртывания работает на Kubernetes в трёх регионах.',
+  pt: 'O nosso pipeline de implantação corre em Kubernetes em três regiões.',
+};
+
+// ---------------------------------------------------------------------------
+// 0. Контекст запуска
+// ---------------------------------------------------------------------------
+$('run-ctx').onclick = async () => {
+  const ua = navigator.userAgentData;
+  const chrome = ua?.brands?.find(b => /Chrome|Chromium/.test(b.brand));
+  const lines = [];
+
+  const proto = location.protocol;
+  const secure = window.isSecureContext;
+  lines.push(`Протокол:        ${proto}`);
+  lines.push(`isSecureContext: ${secure}`);
+  lines.push(`Платформа:       ${ua?.platform || navigator.platform}`);
+  lines.push(`Chrome:          ${chrome ? chrome.version : '(не определён — это точно Chrome?)'}`);
+  lines.push(`Экран:           ${screen.width}×${screen.height}, dpr ${devicePixelRatio}`);
+
+  // Ключевая проверка: пустит ли браузер к микрофону при таком способе открытия.
+  let micOk = false, micErr = '';
+  try {
+    const s = await navigator.mediaDevices.getUserMedia({ audio: true });
+    s.getTracks().forEach(t => t.stop());
+    micOk = true;
+  } catch (e) { micErr = `${e.name}: ${e.message}`; }
+
+  lines.push(`getUserMedia:    ${micOk ? 'работает' : 'ОТКАЗ — ' + micErr}`);
+
+  let verdict, kind;
+  if (micOk && proto === 'file:') {
+    verdict = 'file:// пускает к микрофону — приложение можно отдавать коллегам файлом.';
+    kind = 'ok';
+  } else if (micOk) {
+    verdict = `Через ${proto} всё работает. Про file:// это ничего не говорит — если хотите отдавать файлом, откройте пробник файлом и перепроверьте.`;
+    kind = 'ok';
+  } else if (proto === 'file:') {
+    verdict = 'file:// НЕ пускает к микрофону. Раздача «двойным кликом» невозможна: нужен локальный сервер или деплой. Это меняет план доставки.';
+    kind = 'err';
+  } else {
+    verdict = 'Микрофон недоступен. Проверьте разрешения сайта в Chrome.';
+    kind = 'err';
+  }
+  lines.push('', 'ВЫВОД: ' + verdict);
+
+  results.ctx = { proto, secure, micOk, micErr, chrome: chrome?.version,
+                  screen: `${screen.width}×${screen.height}`, verdict };
+  badge('b-ctx', kind, micOk ? 'ok' : 'отказ');
+  log('out-ctx', lines.join('\n'));
+  render();
+};
+
+// ---------------------------------------------------------------------------
+// 1. Translator API
+// ---------------------------------------------------------------------------
+async function makeTranslator(from, to) {
+  // Chrome 138+ отдаёт глобальный Translator; в более ранних сборках был
+  // self.translation.createTranslator. Пробуем оба, чтобы не соврать в отчёте.
+  if ('Translator' in self) {
+    const avail = await Translator.availability({ sourceLanguage: from, targetLanguage: to });
+    if (avail === 'unavailable') return { avail, tr: null };
+    const tr = await Translator.create({
+      sourceLanguage: from, targetLanguage: to,
+      monitor(m) { m.addEventListener('downloadprogress', e => {
+        appendLog('out-tr', `    загрузка пакета ${from}→${to}: ${Math.round(e.loaded * 100)}%`);
+      }); },
+    });
+    return { avail, tr };
+  }
+  if (self.translation?.createTranslator) {
+    const avail = await self.translation.canTranslate({ sourceLanguage: from, targetLanguage: to });
+    if (avail === 'no') return { avail, tr: null };
+    return { avail, tr: await self.translation.createTranslator({ sourceLanguage: from, targetLanguage: to }) };
+  }
+  return { avail: 'no-api', tr: null };
+}
+
+results.translator = { api: ('Translator' in self) || !!self.translation, rows: {}, pivot: null };
+
+if (!results.translator.api) {
+  badge('b-tr', 'err', 'нет API');
+  log('out-tr', 'Translator API в этом Chrome отсутствует.\n\n' +
+    'ВЫВОД: режим pin невозможен — переводить нечем.');
+}
+
+// Одна кнопка на пару: скачивание пакета требует свежего пользовательского
+// жеста, поэтому цикл по парам с одного клика даёт ложные отказы.
+for (const [from, to] of PAIRS) {
+  const b = document.createElement('button');
+  b.className = 'ghost';
+  b.textContent = `${from} → ${to}`;
+  b.onclick = async () => {
+    b.disabled = true;
+    appendLog('out-tr', `\n${from} → ${to} ...`);
+    try {
+      let avail = 'n/a';
+      if ('Translator' in self) {
+        avail = await Translator.availability({ sourceLanguage: from, targetLanguage: to });
+        appendLog('out-tr', `  availability: ${avail}`);
+      }
+      const t0 = performance.now();
+      const { tr } = await makeTranslator(from, to);
+      if (!tr) throw new Error('create() вернул null');
+      const out = await tr.translate(SAMPLE[from]);
+      const ms = Math.round(performance.now() - t0);
+      tr.destroy?.();
+      results.translator.rows[`${from}-${to}`] = { from, to, avail, direct: true, out, ms };
+      appendLog('out-tr', `  OK (${ms} мс)\n  «${out}»`);
+      b.className = 'ghost'; b.style.borderColor = 'var(--ok)';
+    } catch (e) {
+      // Текст ошибки критичен: NotAllowedError означает «нужен свежий клик»,
+      // NotSupportedError — что пары действительно нет.
+      const msg = `${e.name || 'Error'}: ${e.message || e}`;
+      results.translator.rows[`${from}-${to}`] = { from, to, direct: false, err: msg };
+      appendLog('out-tr', `  ОШИБКА — ${msg}`);
+      appendLog('out-tr', '  ' + (
+        /NotAllowed|activation|gesture/i.test(msg)
+          ? 'Это требование свежего жеста, а не отсутствие пары. Нажмите кнопку ещё раз.'
+        : /NotSupported|unavailable/i.test(msg)
+          ? 'Пара действительно не поддерживается.'
+          : 'Причина неочевидна — пришлите текст ошибки целиком.'));
+      b.style.borderColor = 'var(--err)';
+    }
+    b.disabled = false;
+    const ok = Object.values(results.translator.rows).filter(r => r.direct).length;
+    badge('b-tr', ok === PAIRS.length ? 'ok' : ok ? 'warn' : 'err', `${ok}/${PAIRS.length}`);
+    render();
+  };
+  $('tr-buttons').appendChild(b);
+}
+
+$('tr-pivot').onclick = async () => {
+  const btn = $('tr-pivot'); btn.disabled = true;
+  appendLog('out-tr', '\nПивот ru→en→pt:');
+  try {
+    const a = await makeTranslator('ru', 'en');
+    if (!a.tr) throw new Error('ru→en недоступна');
+    const mid = await a.tr.translate(SAMPLE.ru);
+    appendLog('out-tr', `  промежуточный en: «${mid}»`);
+    const b2 = await makeTranslator('en', 'pt');
+    if (!b2.tr) throw new Error('en→pt недоступна');
+    const out = await b2.tr.translate(mid);
+    a.tr.destroy?.(); b2.tr.destroy?.();
+    results.translator.pivot = { mid, out };
+    appendLog('out-tr', `  итог pt:          «${out}»`);
+    appendLog('out-tr', `  эталон на pt:     «${SAMPLE.pt}»`);
+    appendLog('out-tr', '  Сравните две последние строки — это и есть цена пивота.');
+  } catch (e) {
+    appendLog('out-tr', `  ОШИБКА — ${e.name || ''}: ${e.message || e}`);
+  }
+  btn.disabled = false; render();
+};
+
+// ---------------------------------------------------------------------------
+// 2. Web Speech API
+// ---------------------------------------------------------------------------
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+results.webspeech = { api: !!SR, langs: {} };
+if (!SR) badge('b-ws', 'err', 'нет API');
+
+document.querySelectorAll('[data-ws]').forEach(btn => {
+  btn.onclick = () => {
+    if (!SR) {
+      log('out-ws', 'Web Speech API отсутствует.\n\nВЫВОД: режим pin невозможен, остаётся только auto через Gemini.');
+      return;
+    }
+    const lang = btn.dataset.ws;
+    const r = new SR();
+    r.lang = lang; r.continuous = false; r.interimResults = true; r.maxAlternatives = 1;
+
+    // Меряем от НАЧАЛА РЕЧИ, а не от клика: иначе в цифру попадает
+    // время, пока человек собирался с мыслями, и она ничего не значит.
+    let speechStart = null, speechEnd = null, first = null, final = null;
+    const t0 = performance.now();
+    $('ws-state').textContent = `слушаю ${lang}`;
+    $('ws-state').className = 'badge warn';
+
+    r.onspeechstart = () => { speechStart = performance.now(); };
+    r.onspeechend  = () => { speechEnd = performance.now(); };
+
+    let lastVoice = 0;   // страховка: onspeechend в Chrome срабатывает не всегда
+
+    r.onresult = e => {
+      // Chrome накапливает НЕСКОЛЬКО элементов в e.results. Брать последний —
+      // ошибка: текст начинает мигать и терять слова. Склеиваем все.
+      let text = '';
+      for (let i = 0; i < e.results.length; i++) text += e.results[i][0].transcript;
+      text = text.trim();
+
+      const res = e.results[e.results.length - 1];
+      const base = speechStart ?? t0;
+      lastVoice = performance.now();
+      if (first === null) first = Math.round(lastVoice - base);
+      if (res.isFinal) {
+        const end = speechEnd ?? lastVoice;
+        final = { text, conf: res[0].confidence,
+                  // Ключевая цифра для субтитров: от конца фразы до финального результата.
+                  afterSpeechMs: Math.round(performance.now() - end),
+                  estimated: !speechEnd };
+      }
+      appendLog('out-ws', `  ${res.isFinal ? 'final  ' : 'partial'} ${text}`);
+    };
+    r.onerror = e => {
+      $('ws-state').textContent = 'ошибка'; $('ws-state').className = 'badge err';
+      const hint = e.error === 'not-allowed'
+        ? ' — доступ запрещён: политика Chrome или отказ в разрешении. Это обрушивает режим pin.'
+        : e.error === 'network' ? ' — сеть/сервис недоступен.' : '';
+      appendLog('out-ws', `  ОШИБКА ${e.error}${hint}`);
+      results.webspeech.langs[lang] = { error: e.error };
+      render();
+    };
+    r.onend = () => {
+      const ms = Math.round(performance.now() - t0);
+      $('ws-state').textContent = 'готово'; $('ws-state').className = 'badge ok';
+      if (final) {
+        appendLog('out-ws',
+          `  итог: «${final.text}» (confidence ${final.conf?.toFixed(2) ?? 'n/a'})\n` +
+          `  первый результат через ${first} мс ОТ НАЧАЛА РЕЧИ\n` +
+          `  финальный через ${final.afterSpeechMs} мс ОТ КОНЦА РЕЧИ` +
+          `${final.estimated ? ' (оценка: onspeechend не сработал)' : ''}  ← это увидит зритель\n`);
+        results.webspeech.langs[lang] = { text: final.text, conf: final.conf,
+                                          firstMs: first, afterSpeechMs: final.afterSpeechMs, totalMs: ms };
+      } else if (!results.webspeech.langs[lang]) {
+        appendLog('out-ws', '  ничего не распознано\n');
+        results.webspeech.langs[lang] = { empty: true };
+      }
+      const ok = Object.values(results.webspeech.langs).filter(v => v.text).length;
+      badge('b-ws', ok >= 3 ? 'ok' : ok > 0 ? 'warn' : 'err', `${ok}/3`);
+      render();
+    };
+
+    appendLog('out-ws', `[${lang}] говорите...`);
+    r.start();
+  };
+});
+
+// ---------------------------------------------------------------------------
+// Общий аудио-хелпер: уровень + счётчик реплик
+// ---------------------------------------------------------------------------
+function meterFor(stream, levelEl, onFrame) {
+  const ctx = new AudioContext();
+  const src = ctx.createMediaStreamSource(stream);
+  const an = ctx.createAnalyser();
+  an.fftSize = 1024;
+  src.connect(an);
+  const buf = new Float32Array(an.fftSize);
+  let stop = false;
+  (function tick() {
+    if (stop) return;
+    an.getFloatTimeDomainData(buf);
+    let sum = 0;
+    for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
+    const rms = Math.sqrt(sum / buf.length);
+    if (levelEl) levelEl.style.width = Math.min(100, rms * 400) + '%';
+    onFrame?.(rms);
+    requestAnimationFrame(tick);
+  })();
+  return () => { stop = true; ctx.close(); };
+}
+
+// ---------------------------------------------------------------------------
+// 3. Системный звук
+// ---------------------------------------------------------------------------
+$('run-ds').onclick = async () => {
+  log('out-ds', '');
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+  } catch (e) {
+    badge('b-ds', 'err', 'отказ');
+    log('out-ds', `Захват отменён или запрещён: ${e.name}\n\n` +
+      'ВЫВОД: если это отказ пользователя — повторите. Если системный звук\n' +
+      'недоступен на этой машине — понадобится VB-Audio Cable.');
+    results.displayAudio = { ok: false, err: String(e) }; render(); return;
+  }
+
+  const audio = stream.getAudioTracks();
+  const video = stream.getVideoTracks();
+  video.forEach(t => t.stop());          // видео не нужно — сразу гасим, как в ТЗ
+
+  if (!audio.length) {
+    badge('b-ds', 'err', 'без звука');
+    log('out-ds', 'Видеодорожка есть, аудиодорожки НЕТ.\n\n' +
+      'Причина почти всегда одна: в диалоге не была включена галочка\n' +
+      '«Также передать системный звук», либо выбран не «Весь экран».\n' +
+      'Повторите. Если галочки нет в принципе — понадобится VB-Audio Cable.');
+    stream.getTracks().forEach(t => t.stop());
+    results.displayAudio = { ok: false, noAudioTrack: true }; render(); return;
+  }
+
+  const s = audio[0].getSettings();
+  let peak = 0;
+  const stop = meterFor(stream, $('ds-level'), rms => { peak = Math.max(peak, rms); });
+  badge('b-ds', 'warn', 'слушаю 10 с');
+  $('ds-state').textContent = 'включите видео со звуком';
+  log('out-ds', `Аудиодорожка получена: ${audio[0].label || '(без метки)'}\n` +
+                `  sampleRate ${s.sampleRate ?? '?'}, каналов ${s.channelCount ?? '?'}\n` +
+                'Слушаю 10 секунд, включите что-нибудь со звуком...');
+
+  setTimeout(() => {
+    stop(); stream.getTracks().forEach(t => t.stop());
+    $('ds-level').style.width = '0';
+    const heard = peak > 0.005;
+    badge('b-ds', heard ? 'ok' : 'warn', heard ? 'ok' : 'тишина');
+    $('ds-state').textContent = heard ? 'звук есть' : 'тишина';
+    appendLog('out-ds', `\nПиковый уровень: ${peak.toFixed(4)}\n\nВЫВОД: ` + (heard
+      ? 'системный звук захватывается штатно, VB-Cable не нужен.'
+      : 'дорожка есть, но сигнала не было. Либо не включили звук, либо Chrome\n' +
+        'отдаёт пустую дорожку — тогда нужен VB-Audio Cable.'));
+    results.displayAudio = { ok: true, heard, peak: +peak.toFixed(4), label: audio[0].label, settings: s };
+    render();
+  }, 10000);
+};
+
+// ---------------------------------------------------------------------------
+// 4. Темп речи — сколько реплик в минуту
+// ---------------------------------------------------------------------------
+$('run-rate').onclick = async () => {
+  const btn = $('run-rate'); btn.disabled = true;
+  log('out-rate', 'Говорите как на презентации. 60 секунд...');
+  let stream;
+  try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+  catch (e) { log('out-rate', 'Нет доступа к микрофону: ' + e.name); btn.disabled = false; return; }
+
+  // Простейший VAD по энергии с гистерезисом: реплика заканчивается,
+  // когда тишина держится дольше SILENCE_MS. Ровно та логика, что пойдёт
+  // в GeminiChunkProvider для нарезки чанков.
+  const SPEECH_ON = 0.012, SPEECH_OFF = 0.006, SILENCE_MS = 700, MIN_UTT_MS = 400;
+  let speaking = false, uttStart = 0, lastLoud = 0;
+  const utts = [];
+  const t0 = performance.now();
+
+  const stop = meterFor(stream, $('rate-level'), rms => {
+    const now = performance.now();
+    if (!speaking && rms > SPEECH_ON) { speaking = true; uttStart = now; lastLoud = now; }
+    else if (speaking) {
+      if (rms > SPEECH_OFF) lastLoud = now;
+      else if (now - lastLoud > SILENCE_MS) {
+        const dur = lastLoud - uttStart;
+        if (dur >= MIN_UTT_MS) utts.push(Math.round(dur));
+        speaking = false;
+      }
+    }
+    const left = Math.max(0, 60 - (now - t0) / 1000);
+    $('rate-state').textContent = `${left.toFixed(0)} с · реплик ${utts.length}`;
+  });
+
+  setTimeout(() => {
+    stop(); stream.getTracks().forEach(t => t.stop());
+    $('rate-level').style.width = '0';
+    if (speaking) { const d = lastLoud - uttStart; if (d >= MIN_UTT_MS) utts.push(Math.round(d)); }
+
+    const perMin = utts.length;
+    const avg = utts.length ? Math.round(utts.reduce((a, b) => a + b, 0) / utts.length) : 0;
+    // Склейка: реплики короче ~3 с в реальном провайдере объединяются с соседними,
+    // поэтому оценка «с оптимизацией» заметно ниже наивной.
+    const naive2h = perMin * 120;
+    const merged2h = Math.round(naive2h * 0.55);
+
+    badge('b-rate', 'ok', `${perMin}/мин`);
+    $('rate-state').textContent = 'готово';
+    log('out-rate',
+      `Реплик за минуту:        ${perMin}\n` +
+      `Средняя длительность:    ${avg} мс\n` +
+      `Длительности:            ${utts.join(', ') || '—'}\n\n` +
+      `Оценка на 2 часа выступления:\n` +
+      `  без склейки коротких:  ~${naive2h} запросов\n` +
+      `  со склейкой (§4):      ~${merged2h} запросов\n\n` +
+      'ВЫВОД: сравните с суточным лимитом из проверки 5. Если ~' + merged2h + '\n' +
+      'в лимит не влезает — микрофон придётся вести в режиме pin, и автоопределение\n' +
+      'языка на нём отменяется. Зал в auto при этом остаётся: вопросов десятки, не сотни.');
+    results.speechRate = { perMin, avgMs: avg, naive2h, merged2h, utterances: utts };
+    btn.disabled = false; render();
+  }, 60000);
+};
+
+// ---------------------------------------------------------------------------
+// 5. Gemini
+// ---------------------------------------------------------------------------
+function encodeWav(float32, sampleRate) {
+  // Gemini не принимает webm/opus, поэтому кодируем в WAV PCM16 —
+  // ровно то, что понадобится боевому провайдеру.
+  const n = float32.length;
+  const buf = new ArrayBuffer(44 + n * 2);
+  const v = new DataView(buf);
+  const str = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+  str(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); str(8, 'WAVE');
+  str(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true);
+  v.setUint16(22, 1, true); v.setUint32(24, sampleRate, true);
+  v.setUint32(28, sampleRate * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+  str(36, 'data'); v.setUint32(40, n * 2, true);
+  for (let i = 0; i < n; i++) {
+    const s = Math.max(-1, Math.min(1, float32[i]));
+    v.setInt16(44 + i * 2, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+  }
+  return new Blob([buf], { type: 'audio/wav' });
+}
+
+$('run-gm').onclick = async () => {
+  const key = $('gm-key').value.trim();
+  if (!key) { log('out-gm', 'Введите ключ.'); return; }
+  const btn = $('run-gm'); btn.disabled = true;
+  log('out-gm', 'Говорите одну фразу. Запись остановится через 700 мс тишины.');
+
+  let stream;
+  try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+  catch (e) { log('out-gm', 'Нет доступа к микрофону: ' + e.name); btn.disabled = false; return; }
+
+  // Пишем в 16 кГц моно — как будет в бою.
+  const ctx = new AudioContext({ sampleRate: 16000 });
+  const src = ctx.createMediaStreamSource(stream);
+  const proc = ctx.createScriptProcessor(4096, 1, 1);
+  const chunks = [];
+  let speaking = false, lastLoud = 0, speechEndedAt = 0;
+
+  proc.onaudioprocess = e => {
+    const d = e.inputBuffer.getChannelData(0);
+    chunks.push(new Float32Array(d));
+    let sum = 0; for (let i = 0; i < d.length; i++) sum += d[i] * d[i];
+    const rms = Math.sqrt(sum / d.length);
+    const now = performance.now();
+    if (rms > 0.012) { speaking = true; lastLoud = now; }
+    else if (speaking && now - lastLoud > 700) { speechEndedAt = lastLoud; finish(); }
+  };
+  src.connect(proc); proc.connect(ctx.destination);
+  $('gm-state').textContent = 'запись'; $('gm-state').className = 'badge warn';
+
+  let done = false;
+  const hardStop = setTimeout(() => { speechEndedAt = performance.now(); finish(); }, 15000);
+
+  async function finish() {
+    if (done) return; done = true;
+    clearTimeout(hardStop);
+    proc.disconnect(); src.disconnect(); stream.getTracks().forEach(t => t.stop());
+    const sr = ctx.sampleRate; await ctx.close();
+
+    const total = chunks.reduce((a, c) => a + c.length, 0);
+    const flat = new Float32Array(total);
+    let off = 0; for (const c of chunks) { flat.set(c, off); off += c.length; }
+    const wav = encodeWav(flat, sr);
+    const b64 = await new Promise(res => {
+      const r = new FileReader();
+      r.onload = () => res(r.result.split(',')[1]);
+      r.readAsDataURL(wav);
+    });
+
+    appendLog('out-gm', `Записано ${(total / sr).toFixed(1)} с, WAV ${(wav.size / 1024).toFixed(0)} КБ. Отправляю...`);
+    $('gm-state').textContent = 'запрос';
+
+    const prompt =
+      'You are a transcription service. The audio contains one utterance in English, ' +
+      'Russian or European Portuguese. Detect the language, transcribe it verbatim, then ' +
+      'translate into English and European Portuguese. Reply with JSON only, no prose: ' +
+      '{"lang":"en|ru|pt","text":"...","en":"...","pt":"..."}';
+
+    const t0 = performance.now();
+    try {
+      const resp = await fetch(
+        'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=' +
+        encodeURIComponent(key),
+        { method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }, { inline_data: { mime_type: 'audio/wav', data: b64 } }] }],
+            generationConfig: { responseMimeType: 'application/json', temperature: 0 },
+          }) });
+      const ms = Math.round(performance.now() - t0);
+      // Задержка, которую реально увидит зритель: от конца речи, а не от отправки.
+      const perceived = Math.round(performance.now() - speechEndedAt);
+
+      if (!resp.ok) {
+        const body = await resp.text();
+        badge('b-gm', 'err', 'HTTP ' + resp.status);
+        appendLog('out-gm', `\nОШИБКА ${resp.status}\n${body.slice(0, 600)}`);
+        results.gemini = { ok: false, status: resp.status, body: body.slice(0, 300) };
+        $('gm-state').textContent = 'ошибка'; $('gm-state').className = 'badge err';
+        btn.disabled = false; render(); return;
+      }
+
+      const j = await resp.json();
+      const raw = j.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+      let parsed = null; try { parsed = JSON.parse(raw); } catch {}
+      const usage = j.usageMetadata || {};
+
+      badge('b-gm', perceived < 5000 ? 'ok' : 'warn', perceived + ' мс');
+      $('gm-state').textContent = 'готово'; $('gm-state').className = 'badge ok';
+      appendLog('out-gm',
+        `\nЗапрос:                ${ms} мс\n` +
+        `ЗАДЕРЖКА ОТ КОНЦА РЕЧИ: ${perceived} мс   ← это увидит зритель\n` +
+        `Токенов:               ${usage.promptTokenCount ?? '?'} in / ${usage.candidatesTokenCount ?? '?'} out\n\n` +
+        (parsed
+          ? `Определён язык: ${parsed.lang}\nОригинал: ${parsed.text}\nEN: ${parsed.en}\nPT: ${parsed.pt}`
+          : `Ответ не разобрался как JSON:\n${raw.slice(0, 400)}`) +
+        '\n\nВЫВОД: ' + (perceived < 5000
+          ? 'задержка укладывается в требование §14 (5 с для auto). Проверьте, верно ли определён язык.'
+          : 'задержка выше 5 секунд — для субтитров ведущего это много. Для лога зала терпимо.'));
+      results.gemini = { ok: true, requestMs: ms, perceivedMs: perceived, parsed, usage,
+                         audioSec: +(total / sr).toFixed(1) };
+    } catch (e) {
+      badge('b-gm', 'err', 'сбой');
+      appendLog('out-gm', '\nСбой запроса: ' + e);
+      results.gemini = { ok: false, err: String(e) };
+      $('gm-state').textContent = 'сбой'; $('gm-state').className = 'badge err';
+    }
+    btn.disabled = false; render();
+  }
+};
+
+// ---------------------------------------------------------------------------
+// Отчёт
+// ---------------------------------------------------------------------------
+function render() {
+  const L = [];
+  L.push('# Разведка окружения (этап 0)', '');
+
+  if (results.ctx) {
+    const c = results.ctx;
+    L.push('## Контекст', `- Chrome ${c.chrome ?? '?'}, экран ${c.screen}, протокол \`${c.proto}\``,
+           `- getUserMedia: ${c.micOk ? 'работает' : 'ОТКАЗ (' + c.micErr + ')'}`,
+           `- ${c.verdict}`, '');
+  }
+
+  if (results.translator) {
+    L.push('## Chrome Translator API');
+    if (!results.translator.api) L.push('- **API отсутствует** — режим `pin` невозможен.');
+    else {
+      for (const r of Object.values(results.translator.rows)) {
+        L.push(`- \`${r.from}→${r.to}\`: ` + (r.direct
+          ? `ok, availability \`${r.avail}\` (${r.ms} мс) — «${r.out}»`
+          : `**ОШИБКА** — \`${r.err}\``));
+      }
+      if (results.translator.pivot) {
+        L.push(`- пивот \`ru→en→pt\`: «${results.translator.pivot.out}»`);
+        L.push(`  - для сравнения, оригинал на pt: «${SAMPLE.pt}»`);
+      }
+    }
+    L.push('');
+  }
+
+  if (results.webspeech) {
+    L.push('## Web Speech API');
+    if (!results.webspeech.api) L.push('- **API отсутствует** — режим `pin` невозможен.');
+    else for (const [lang, v] of Object.entries(results.webspeech.langs)) {
+      L.push(`- \`${lang}\`: ` + (v.text
+        ? `«${v.text}» (conf ${v.conf?.toFixed(2) ?? 'n/a'}) — ` +
+          `**${v.afterSpeechMs ?? '?'} мс от конца речи**, первый результат ${v.firstMs} мс от начала`
+        : v.error ? `**ошибка ${v.error}**` : 'пусто'));
+    }
+    L.push('');
+  }
+
+  if (results.displayAudio) {
+    const d = results.displayAudio;
+    L.push('## Системный звук',
+      d.ok ? `- дорожка получена: ${d.label || '(без метки)'}, пик ${d.peak} — ${d.heard ? 'сигнал есть' : '**тишина**'}`
+           : `- **не получен**: ${d.noAudioTrack ? 'аудиодорожки нет (галочка «системный звук»?)' : d.err}`, '');
+  }
+
+  if (results.speechRate) {
+    const s = results.speechRate;
+    L.push('## Темп речи',
+      `- ${s.perMin} реплик/мин, средняя ${s.avgMs} мс`,
+      `- на 2 часа: ~${s.naive2h} запросов без склейки, ~${s.merged2h} со склейкой`, '');
+  }
+
+  if (results.gemini) {
+    const g = results.gemini;
+    L.push('## Gemini');
+    if (g.ok) {
+      L.push(`- задержка от конца речи: **${g.perceivedMs} мс** (сам запрос ${g.requestMs} мс, аудио ${g.audioSec} с)`);
+      L.push(`- токенов: ${g.usage?.promptTokenCount ?? '?'} in / ${g.usage?.candidatesTokenCount ?? '?'} out`);
+      if (g.parsed) L.push(`- определён язык \`${g.parsed.lang}\`, текст: «${g.parsed.text}»`);
+      else L.push('- **ответ не разобрался как JSON** — промпту нужна доработка');
+    } else L.push(`- **сбой**: ${g.status ? 'HTTP ' + g.status + ' ' + g.body : g.err}`);
+    L.push('');
+  }
+
+  L.push('## Не автоматизируется, заполнить руками',
+    '- Суточный лимит Gemini free tier (requests/day) для `gemini-2.5-flash`: ______',
+    '- Мониторов на боевой презентации: 1',
+    '');
+
+  $('report').textContent = L.join('\n');
+}
+
+$('copy').onclick = async () => {
+  try {
+    await navigator.clipboard.writeText($('report').textContent);
+    badge('copy-state', 'ok', 'скопировано');
+  } catch { badge('copy-state', 'err', 'выделите вручную'); }
+};
+
+render();
+</script>
+</body>
+</html>
