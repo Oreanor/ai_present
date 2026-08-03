@@ -1,3 +1,4 @@
+import { VAD } from '../constants';
 // VAD — обязательный компонент, а не оптимизация (§7). Решает две задачи:
 // не отправлять тишину (иначе суточный лимит уходит в пустоту) и задавать
 // границы чанка, чтобы реплика улетала на распознавание сразу по окончании
@@ -38,18 +39,18 @@ export class Vad {
   async start(stream: MediaStream): Promise<void> {
     // 16 кГц запрашиваем прямо у AudioContext — Chrome ресемплит сам,
     // собственный ресемплер писать не нужно (§7).
-    const ctx = new AudioContext({ sampleRate: 16000 });
+    const ctx = new AudioContext({ sampleRate: VAD.SAMPLE_RATE });
     this.ctx = ctx;
     this.src = ctx.createMediaStreamSource(stream);
     const node = ctx.createScriptProcessor(4096, 1, 1);
     this.node = node;
 
-    const on = this.opts.speechOn ?? 0.012;
-    const off = this.opts.speechOff ?? 0.006;
-    const silenceMs = this.opts.silenceMs ?? 700;
-    const minMs = this.opts.minUtteranceMs ?? 400;
-    const maxMs = this.opts.maxUtteranceMs ?? 30_000;
-    const preRollMs = this.opts.preRollMs ?? 300;
+    const on = this.opts.speechOn ?? VAD.SPEECH_ON;
+    const off = this.opts.speechOff ?? VAD.SPEECH_OFF;
+    const silenceMs = this.opts.silenceMs ?? VAD.SILENCE_MS;
+    const minMs = this.opts.minUtteranceMs ?? VAD.MIN_UTTERANCE_MS;
+    const maxMs = this.opts.maxUtteranceMs ?? VAD.MAX_UTTERANCE_MS;
+    const preRollMs = this.opts.preRollMs ?? VAD.PRE_ROLL_MS;
     const preRollMax = (preRollMs / 1000) * ctx.sampleRate;
 
     node.onaudioprocess = (e) => {

@@ -1,3 +1,4 @@
+import { RENDER } from './constants';
 import * as pdfjs from 'pdfjs-dist';
 import type { PDFDocumentProxy, PDFPageProxy } from 'pdfjs-dist';
 
@@ -63,22 +64,6 @@ export async function openDeck(file: File): Promise<Deck> {
   return { doc, pageCount: doc.numPages, aspect, warnings, pageText: new Array(doc.numPages).fill(null) };
 }
 
-/** Прямоугольник слайда внутри области: contain по ОБЕИМ осям (§6).
- *  Вписывание только по ширине увело бы низ кадра за границу окна
- *  вместе с субтитрами. */
-export function fitContain(
-  areaW: number,
-  areaH: number,
-  aspect: number,
-): { x: number; y: number; w: number; h: number } {
-  let w = areaW;
-  let h = w / aspect;
-  if (h > areaH) {
-    h = areaH;
-    w = h * aspect;
-  }
-  return { x: (areaW - w) / 2, y: (areaH - h) / 2, w, h };
-}
 
 /**
  * Кэш отрендеренных страниц с ограничением размера и обязательным cleanup().
@@ -93,7 +78,7 @@ export class PageRenderer {
 
   constructor(
     private deck: Deck,
-    private limit = 6,
+    private limit = RENDER.PAGE_CACHE,
   ) {}
 
   async render(index: number, cssWidth: number, dpr: number): Promise<HTMLCanvasElement> {

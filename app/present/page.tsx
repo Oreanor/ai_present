@@ -3,33 +3,18 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AnnotationLayer } from '@/components/AnnotationLayer';
 import { CaptionBand } from '@/components/CaptionBand';
-import { CaptionColumn, SIDE_MIN_FRACTION, sideRoom } from '@/components/CaptionColumn';
+import { CaptionColumn } from '@/components/CaptionColumn';
+import { LAYOUT, SIDE_COLUMN } from '@/lib/constants';
+import { sideRoom } from '@/lib/geometry';
 import { SlideCanvas, type SlideRect } from '@/components/SlideCanvas';
+import { useElementSize } from '@/hooks/useElementSize';
 import { getBus, type BusMessage } from '@/lib/bus';
 import { openDeck, PageRenderer, type Deck } from '@/lib/pdf';
 import { attachHotkeys, type Command } from '@/lib/hotkeys';
 import { uid } from '@/lib/speech/types';
-import type { PresentationState, Shape } from '@/lib/types';
+import { emptyPresentationState, type PresentationState, type Shape } from '@/lib/types';
 
-const EMPTY: PresentationState = {
-  slideIndex: 0,
-  slideCount: 0,
-  captions: {
-    layout: 'reserve',
-    fontSize: 40,
-    bandHeight: 22,
-    color: '#ffffff',
-    background: 'rgba(0,0,0,0.62)',
-    visible: true,
-    showAudience: true,
-  },
-  shapes: [],
-  shapeKind: 'rect',
-  shapeColor: 'rgba(250, 204, 21, 0.35)',
-  status: 'idle',
-  captionLine: null,
-  captionHistory: [],
-};
+const EMPTY: PresentationState = emptyPresentationState();
 
 /**
  * Окно Presentation — то, что расшаривается в Teams. Ничего лишнего:
@@ -43,11 +28,14 @@ export default function PresentPage() {
   const [state, setState] = useState<PresentationState>(EMPTY);
   const [deck, setDeck] = useState<Deck | null>(null);
   const [renderer, setRenderer] = useState<PageRenderer | null>(null);
-  const [size, setSize] = useState({ w: 0, h: 0 });
+  
   const [rect, setRect] = useState<SlideRect>({ x: 0, y: 0, w: 0, h: 0 });
   const [idle, setIdle] = useState(false);
   const bus = useRef(getBus());
   const rootRef = useRef<HTMLElement>(null);
+  // Размер с самого контейнера: window.innerWidth не обновляется при
+  // части изменений, и слайд уезжает за границы прямо в трансляции.
+  const size = useElementSize(rootRef, [deck]);
 
   useEffect(() => {
     document.body.dataset.window = 'present';
@@ -72,18 +60,6 @@ export default function PresentPage() {
     };
   }, [state.slideCount]);
 
-  // Размер берём с самого контейнера через ResizeObserver, а не из
-  // window.innerWidth: последний не обновляется при части изменений
-  // (полноэкранный режим, зум, изменение метрик), и слайд уезжает
-  // за границы окна прямо в трансляции.
-  useEffect(() => {
-    const el = rootRef.current;
-    if (!el) return;
-    const ro = new ResizeObserver(() => setSize({ w: el.clientWidth, h: el.clientHeight }));
-    ro.observe(el);
-    setSize({ w: el.clientWidth, h: el.clientHeight });
-    return () => ro.disconnect();
-  }, []);
 
   // Курсор прячется в покое: он попадает в трансляцию и отвлекает.
   useEffect(() => {
@@ -91,7 +67,7 @@ export default function PresentPage() {
     const wake = () => {
       setIdle(false);
       clearTimeout(t);
-      t = setTimeout(() => setIdle(true), 2500);
+      t = setTimeout(() => setIdle(true), LAYOUT.IDLE_CURSOR_MS);
     };
     wake();
     window.addEventListener('pointermove', wake);
@@ -125,7 +101,7 @@ export default function PresentPage() {
 
   // Боковая колонка возможна, только если слайд уже окна: иначе места нет.
   const room = sideRoom(windowAspect, aspect);
-  const sideActive = state.captions.layout === 'side' && room >= SIDE_MIN_FRACTION;
+  const sideActive = state.captions.layout === 'side' && room >= SIDE_COLUMN.MIN_FRACTION;
   const sideWidth = sideActive ? Math.round(size.w * room) : 0;
 
   const bandHeight = state.captions.visible && !sideActive ? (size.h * state.captions.bandHeight) / 100 : 0;
@@ -184,11 +160,11 @@ export default function PresentPage() {
 function StatusDot({ status }: { status: PresentationState['status'] }) {
   const color =
     status === 'listening'
-      ? 'var(--color-ok)'
+      ? 'var(--ok)'
       : status === 'reconnecting' || status === 'connecting'
-        ? 'var(--color-warn)'
+        ? 'var(--warn)'
         : status === 'error'
-          ? 'var(--color-err)'
+          ? 'var(--err)'
           : 'rgba(255,255,255,0.22)';
   return (
     <div

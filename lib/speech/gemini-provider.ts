@@ -1,3 +1,4 @@
+import { GEMINI } from '../constants';
 import type { Lang, Utterance } from '../types';
 import { LANG_NAMES } from '../types';
 import { loadApiKey } from '../storage';
@@ -11,8 +12,6 @@ import { uid, type Capabilities, type SpeechProvider, type StartOptions } from '
 // Не нарезка по таймеру: вопросы зала идут в субтитры, и задержка
 // в 20–30 секунд сделала бы их бессмысленными (§9).
 
-const MODEL = 'gemini-2.5-flash';
-const ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
 
 /**
  * Ограничитель частоты. У бесплатного тарифа лимитов три, и первым
@@ -21,13 +20,7 @@ const ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${MODE
  * выжигает минутный лимит за секунды и получает 429, который легко
  * принять за исчерпание дневной квоты.
  */
-/** Цены Tier 1 за миллион токенов. */
-const USD_PER_INPUT_TOKEN = 0.30 / 1_000_000;
-const USD_PER_OUTPUT_TOKEN = 2.50 / 1_000_000;
 
-/** Оценка до первого ответа: реплика 10–15 секунд это примерно
- *  500 входных токенов аудио плюс промпт и 150 выходных. */
-export const COST_PER_REQUEST_USD = 0.0008;
 
 export const quota = {
   used: 0,
@@ -41,7 +34,7 @@ export const quota = {
    * центов в тридцать евро, пока никто не смотрит. Бюджетные уведомления
    * Google приходят постфактум и ничего не останавливают.
    */
-  cap: 400,
+  cap: GEMINI.DEFAULT_CAP as number,
   /** Метки времени отправленных запросов за последнюю минуту. */
   recent: [] as number[],
   listeners: new Set<(n: number) => void>(),
@@ -72,8 +65,8 @@ export const quota = {
    * Учитывает только расход этого приложения в этом браузере.
    */
   spentUsd(): number {
-    if (this.inTokens === 0) return this.used * COST_PER_REQUEST_USD;
-    return this.inTokens * USD_PER_INPUT_TOKEN + this.outTokens * USD_PER_OUTPUT_TOKEN;
+    if (this.inTokens === 0) return this.used * GEMINI.ESTIMATED_USD_PER_REQUEST;
+    return this.inTokens * GEMINI.USD_PER_INPUT_TOKEN + this.outTokens * GEMINI.USD_PER_OUTPUT_TOKEN;
   },
 
   /** Сколько ещё можно отправить прямо сейчас, не упираясь в минутный лимит. */
@@ -228,7 +221,7 @@ export class GeminiChunkProvider implements SpeechProvider {
     // Ждём не дольше половины минуты — позже реплика всё равно неактуальна.
     const wait = quota.waitMs();
     if (wait > 0) {
-      if (wait > 30_000 || this.inflight >= 2) return;
+      if (wait > GEMINI.MAX_WAIT_FOR_SLOT_MS || this.inflight >= 2) return;
       await new Promise((r) => setTimeout(r, wait));
       if (!this.opts) return;
     }
@@ -268,7 +261,7 @@ export class GeminiChunkProvider implements SpeechProvider {
           quota.used = quota.rpd;
           throw new Error('Gemini daily quota is used up. Switch this channel to a pinned language, or upgrade the key.');
         }
-        const delay = Math.min(retryDelayMs(text) ?? 4000, 20_000);
+        const delay = Math.min(retryDelayMs(text) ?? 4000, GEMINI.MAX_RETRY_DELAY_MS);
         opts.onStatus('reconnecting');
         await new Promise((r) => setTimeout(r, delay));
         if (!this.opts) return;
@@ -323,7 +316,7 @@ export class GeminiChunkProvider implements SpeechProvider {
   private request(body: unknown): Promise<Response> {
     const key = loadApiKey();
     if (key) {
-      return fetch(`${ENDPOINT}?key=${encodeURIComponent(key)}`, {
+      return fetch(`${`${GEMINI.ENDPOINT}/${GEMINI.MODEL}:generateContent`}?key=${encodeURIComponent(key)}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),

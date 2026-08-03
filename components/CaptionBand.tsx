@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { CAPTIONS } from '@/lib/constants';
 import type { CaptionSettings, Speaker } from '@/lib/types';
 
 /**
@@ -28,14 +29,6 @@ import type { CaptionSettings, Speaker } from '@/lib/types';
  * транслировать содержимое зрителям.
  */
 
-/** Примерно столько влезает в две строки крупным кеглем. */
-const MAX_CHARS = 84;
-/** Меньше этого карточка мелькает и не читается. */
-const MIN_DWELL_MS = 1400;
-/** Скорость чтения: примерно 15 знаков в секунду. */
-const MS_PER_CHAR = 65;
-/** Пауза в речи, после которой полоса гаснет. */
-const CLEAR_AFTER_MS = 7000;
 
 type Line = { text: string; final: boolean; speaker: Speaker };
 type Card = { text: string; speaker: Speaker; key: string };
@@ -44,7 +37,7 @@ type Card = { text: string; speaker: Speaker; key: string };
  * Режет фразу на карточки субтитрового размера. Приоритет разрыва:
  * конец предложения → запятая → пробел. Разрыв посреди слова недопустим.
  */
-export function splitForSubtitles(text: string, max = MAX_CHARS): string[] {
+export function splitForSubtitles(text: string, max = CAPTIONS.MAX_CHARS): string[] {
   const clean = text.replace(/\s+/g, ' ').trim();
   if (!clean) return [];
   if (clean.length <= max) return [clean];
@@ -121,11 +114,11 @@ export function CaptionBand({
         timer.current = setTimeout(() => {
           timer.current = null;
           if (queue.current.length === 0) setCard(null);
-        }, CLEAR_AFTER_MS);
+        }, CAPTIONS.CLEAR_AFTER_MS);
         return;
       }
       setCard(next);
-      const dwell = Math.max(MIN_DWELL_MS, next.text.length * MS_PER_CHAR);
+      const dwell = Math.max(CAPTIONS.MIN_DWELL_MS, next.text.length * CAPTIONS.MS_PER_CHAR);
       timer.current = setTimeout(step, dwell);
     };
     step();

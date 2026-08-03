@@ -2,7 +2,9 @@
 
 import { useRef, useState } from 'react';
 import type { Shape, ShapeKind } from '@/lib/types';
-import { DRAG_THRESHOLD_PX, arrowPath, hitTest, strokeFor } from '@/lib/shapes';
+import { ANNOTATION } from '@/lib/constants';
+import { arrowPath, hitTest } from '@/lib/geometry';
+import { strokeFor } from '@/lib/shapes';
 
 /**
  * Разметка поверх слайда (§6а). SVG-слой над canvas, а не рисование в canvas
@@ -60,7 +62,7 @@ export function AnnotationLayer({
     if (!p) return;
     // Ниже порога считаем это кликом-удалением, а не рисованием: иначе
     // каждое удаление порождало бы вырожденную фигуру нулевого размера.
-    if (Math.hypot(p.px - start.px, p.py - start.py) < DRAG_THRESHOLD_PX) return;
+    if (Math.hypot(p.px - start.px, p.py - start.py) < ANNOTATION.DRAG_THRESHOLD_PX) return;
     setDraft({ kind, color, x1: start.x, y1: start.y, x2: p.x, y2: p.y });
   };
 
@@ -72,7 +74,7 @@ export function AnnotationLayer({
     if (!p) return;
 
     const moved = Math.hypot(p.px - start.px, p.py - start.py);
-    if (moved < DRAG_THRESHOLD_PX) {
+    if (moved < ANNOTATION.DRAG_THRESHOLD_PX) {
       // Клик — удаляем верхнюю фигуру под курсором.
       const hit = hitTest(shapes, p.x, p.y, rect.w / Math.max(rect.h, 1));
       if (hit) onRemove?.(hit.id);

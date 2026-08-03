@@ -1,69 +1,50 @@
 'use client';
 
 import { useLayoutEffect, useRef, useState } from 'react';
-import type { Entry, Lang, MeetingProfile } from '@/lib/types';
-import { ALL_LANGS, LANG_NAMES } from '@/lib/types';
+import { useStore } from '@/lib/store';
+import { ALL_LANGS, LANG_NAMES, type Entry, type Lang } from '@/lib/types';
+import { useT } from '@/lib/ui-prefs';
 
 /**
  * Лог как переписка (§10). Одна лента, пузыри, свои реплики справа —
  * так же, как в любом мессенджере.
  *
- * Показывается ОДИН язык — тот, на котором ведущий думает. Две колонки
+ * Показывается ОДИН язык, по умолчанию язык аудитории: лог отдают
+ * участникам встречи, и читать его будут прежде всего они. Две колонки
  * рядом требуют читать таблицу, а во время выступления читать таблицу
- * некогда. Вторая версия и оригинал раскрываются по клику на пузырь:
- * они нужны редко, но когда нужны — нужны точно.
+ * некогда. Вторая версия и оригинал раскрываются кликом по пузырю.
  *
  * Обе стенограммы при этом ведутся полностью и целиком уходят в экспорт.
  * Упрощён показ, а не данные.
  */
-export function ChatLog({
-  entries,
-  profile,
-  viewLang,
-  translating,
-  onSetViewLang,
-  onToggleFlag,
-  onEdit,
-}: {
-  entries: Entry[];
-  profile: MeetingProfile;
-  viewLang: Lang | null;
-  translating: { lang: Lang; done: number; total: number } | null;
-  onSetViewLang: (l: Lang) => void;
-  onToggleFlag: (id: string) => void;
-  onEdit: (id: string, lang: Lang | 'orig', text: string) => void;
-}) {
+export function ChatLog() {
+  const { entries, profile, viewLang, translating, setViewLang, toggleFlag, editEntry } = useStore();
+  const t = useT();
+
   const boxRef = useRef<HTMLDivElement>(null);
   const [stick, setStick] = useState(true);
   const [open, setOpen] = useState<string | null>(null);
 
-  // По умолчанию — язык аудитории: лог отдают участникам встречи,
-  // и читать его будут прежде всего они.
-  const mine = viewLang ?? profile.captionLang;
-  const theirs = profile.transcriptLangs.find((l) => l !== mine) ?? profile.transcriptLangs[0];
+  const shown = viewLang ?? profile.captionLang;
+  const other = profile.transcriptLangs.find((l) => l !== shown) ?? profile.transcriptLangs[0];
 
+  // Автопрокрутка отключается при ручном скролле — иначе невозможно
+  // перечитать вопрос, заданный минуту назад.
   useLayoutEffect(() => {
     const el = boxRef.current;
     if (el && stick) el.scrollTop = el.scrollHeight;
   }, [entries, stick]);
 
-  const visible = entries;
-
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
-      {/* Переключатель языка чтения. Две стенограммы хранятся всегда,
-          поэтому между ними переключение мгновенно; третий язык
-          догоняется переводом всей ленты разом, на устройстве. */}
       <div className="flex shrink-0 items-center gap-1 border-b border-line px-2 py-1">
-        <span className="mr-1 text-[10px] uppercase tracking-wide text-dim">Read in</span>
+        <span className="mr-1 text-[10px] uppercase tracking-wide text-dim">{t('readIn')}</span>
         {ALL_LANGS.map((l) => (
           <button
             key={l}
-            onClick={() => onSetViewLang(l)}
+            onClick={() => void setViewLang(l)}
             disabled={!!translating}
-            className={`rounded px-2 py-0.5 text-[11px] font-semibold uppercase ${
-              mine === l ? 'bg-accent text-black' : 'border border-line text-dim'
-            } disabled:opacity-40`}
+            className={`btn btn-sm font-semibold uppercase ${shown === l ? 'btn-on' : ''}`}
             title={
               profile.transcriptLangs.includes(l)
                 ? `Kept in ${LANG_NAMES[l]} — switches instantly`
@@ -88,83 +69,20 @@ export function ChatLog({
         }}
         className="min-h-0 flex-1 space-y-2 overflow-y-auto px-3 py-3"
       >
-        {visible.length === 0 ? (
-          <p className="pt-10 text-center text-xs text-dim">
-            {entries.length ? 'Nothing matches.' : 'Nothing said yet.'}
-          </p>
-        ) : null}
+        {entries.length === 0 ? <p className="pt-10 text-center text-xs text-dim">{t('nothingInLog')}</p> : null}
 
-        {visible.map((e) => {
-          const isMine = e.speaker === 'presenter';
-          const main = e.texts[mine] ?? e.origText;
-          const other = e.texts[theirs];
-          const expanded = open === e.id;
-
-          return (
-            <div key={e.id} className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}>
-              <div className={`max-w-[88%] ${isMine ? 'items-end' : 'items-start'} flex flex-col`}>
-                <button
-                  onClick={() => setOpen(expanded ? null : e.id)}
-                  className={`rounded-2xl px-3 py-2 text-left text-[14px] leading-snug transition-colors ${
-                    isMine
-                      ? 'rounded-br-md bg-accent/18 text-fg hover:bg-accent/25'
-                      : 'rounded-bl-md bg-white/[0.07] text-fg hover:bg-white/[0.11]'
-                  }`}
-                  title="Click to see the other language and the original"
-                >
-                  {main}
-                </button>
-
-                <div className="mt-0.5 flex items-center gap-1.5 px-1 text-[10px] text-dim">
-                  <span>{isMine ? 'me' : 'room'}</span>
-                  <span className="opacity-50">·</span>
-                  <span>slide {e.slideIndex + 1}</span>
-                  {e.origLang !== mine ? (
-                    <>
-                      <span className="opacity-50">·</span>
-                      <span className="uppercase">said in {e.origLang}</span>
-                    </>
-                  ) : null}
-                  <button
-                    onClick={() => onToggleFlag(e.id)}
-                    className={e.flagged ? 'opacity-100' : 'opacity-30 hover:opacity-80'}
-                    title="Flag for follow-up (B)"
-                  >
-                    🔖
-                  </button>
-                </div>
-
-                {expanded ? (
-                  <div
-                    className={`mt-1 w-full rounded-lg border border-line bg-black/40 px-2.5 py-2 text-[12px] ${
-                      isMine ? 'text-right' : ''
-                    }`}
-                  >
-                    <p className="text-dim">
-                      <span className="mr-1 uppercase opacity-60">{theirs}</span>
-                      {other ?? '—'}
-                    </p>
-                    {e.origLang !== mine && e.origLang !== theirs ? (
-                      <p className="mt-1 text-dim">
-                        <span className="mr-1 uppercase opacity-60">{e.origLang}</span>
-                        {e.origText}
-                      </p>
-                    ) : null}
-                    <button
-                      onClick={() => {
-                        const next = prompt(`Fix the ${LANG_NAMES[mine]} text`, main);
-                        if (next !== null) onEdit(e.id, mine, next);
-                      }}
-                      className="mt-1.5 rounded border border-line px-1.5 py-0.5 text-[11px] text-dim hover:text-fg"
-                    >
-                      Fix text
-                    </button>
-                  </div>
-                ) : null}
-              </div>
-            </div>
-          );
-        })}
+        {entries.map((e) => (
+          <Bubble
+            key={e.id}
+            entry={e}
+            shown={shown}
+            other={other}
+            expanded={open === e.id}
+            onToggle={() => setOpen(open === e.id ? null : e.id)}
+            onFlag={() => toggleFlag(e.id)}
+            onEdit={(text) => editEntry(e.id, shown, text)}
+          />
+        ))}
       </div>
 
       {!stick ? (
@@ -174,11 +92,90 @@ export function ChatLog({
             const el = boxRef.current;
             if (el) el.scrollTop = el.scrollHeight;
           }}
-          className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-accent px-3 py-1 text-xs font-semibold text-black shadow-lg"
+          className="btn btn-primary btn-sm absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full shadow-lg"
         >
-          ↓ Latest
+          {t('latest')}
         </button>
       ) : null}
+    </div>
+  );
+}
+
+function Bubble({
+  entry,
+  shown,
+  other,
+  expanded,
+  onToggle,
+  onFlag,
+  onEdit,
+}: {
+  entry: Entry;
+  shown: Lang;
+  other: Lang;
+  expanded: boolean;
+  onToggle: () => void;
+  onFlag: () => void;
+  onEdit: (text: string) => void;
+}) {
+  const t = useT();
+  const mine = entry.speaker === 'presenter';
+  const main = entry.texts[shown] ?? entry.origText;
+
+  return (
+    <div className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
+      <div className={`flex flex-col ${mine ? 'items-end' : 'items-start'} max-w-[88%]`}>
+        <button onClick={onToggle} className={`bubble ${mine ? 'bubble-mine' : 'bubble-room'}`} title={t('clickForOther')}>
+          {main}
+        </button>
+
+        <div className="bubble-meta">
+          <span>{mine ? t('me') : t('room')}</span>
+          <span className="opacity-50">·</span>
+          <span>
+            {t('slide')} {entry.slideIndex + 1}
+          </span>
+          {entry.origLang !== shown ? (
+            <>
+              <span className="opacity-50">·</span>
+              <span className="uppercase">
+                {t('saidIn')} {entry.origLang}
+              </span>
+            </>
+          ) : null}
+          <button
+            onClick={onFlag}
+            className={entry.flagged ? 'opacity-100' : 'opacity-30 hover:opacity-80'}
+            title={t('flagForFollowUp')}
+          >
+            🔖
+          </button>
+        </div>
+
+        {expanded ? (
+          <div className={`mt-1 w-full rounded-lg border border-line bg-black/20 px-2.5 py-2 text-[12px] ${mine ? 'text-right' : ''}`}>
+            <p className="text-dim">
+              <span className="mr-1 uppercase opacity-60">{other}</span>
+              {entry.texts[other] ?? '—'}
+            </p>
+            {entry.origLang !== shown && entry.origLang !== other ? (
+              <p className="mt-1 text-dim">
+                <span className="mr-1 uppercase opacity-60">{entry.origLang}</span>
+                {entry.origText}
+              </p>
+            ) : null}
+            <button
+              onClick={() => {
+                const next = prompt(`Fix the ${LANG_NAMES[shown]} text`, main);
+                if (next !== null) onEdit(next);
+              }}
+              className="btn btn-sm mt-1.5"
+            >
+              {t('fixText')}
+            </button>
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }

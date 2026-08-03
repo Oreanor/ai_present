@@ -1,19 +1,12 @@
 @import 'tailwindcss';
 
-@theme {
-  --color-ink: var(--ink);
-  --color-panel: var(--panel);
-  --color-line: var(--line);
-  --color-fg: var(--fg);
-  --color-dim: var(--dim);
-  --color-accent: var(--accent);
-  --color-ok: var(--ok);
-  --color-warn: var(--warn);
-  --color-err: var(--err);
-}
+/* ---------------------------------------------------------------------------
+   Токены темы.
 
-/* Тема переключается атрибутом на <html>, а не классом на body:
-   так она применяется до первой отрисовки и не мигает. */
+   Переключение — атрибутом на <html>, а не классом на body: так тема
+   применяется до первой отрисовки и не мигает при загрузке.
+--------------------------------------------------------------------------- */
+
 :root,
 :root[data-theme='dark'] {
   --ink: #0d0f14;
@@ -22,9 +15,12 @@
   --fg: #e7e9ef;
   --dim: #8f98ab;
   --accent: #6aa8ff;
+  --on-accent: #08111f;
   --ok: #3ecf8e;
   --warn: #e3b341;
   --err: #f26d6d;
+  --bubble-mine: rgb(106 168 255 / 0.18);
+  --bubble-room: rgb(255 255 255 / 0.07);
   --slide-bg: #000;
 }
 
@@ -35,12 +31,27 @@
   --fg: #171a20;
   --dim: #626b7c;
   --accent: #2563eb;
+  --on-accent: #ffffff;
   --ok: #0f9d63;
   --warn: #b07709;
   --err: #d13b38;
+  --bubble-mine: rgb(37 99 235 / 0.12);
+  --bubble-room: rgb(23 26 32 / 0.06);
   /* Область слайда остаётся тёмной в обеих темах: она обрамляет
-     полиграфию, и светлые поля вокруг белого слайда сливаются. */
+     полиграфию, а светлые поля вокруг белого слайда сливаются. */
   --slide-bg: #1b1f27;
+}
+
+@theme inline {
+  --color-ink: var(--ink);
+  --color-panel: var(--panel);
+  --color-line: var(--line);
+  --color-fg: var(--fg);
+  --color-dim: var(--dim);
+  --color-accent: var(--accent);
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+  --color-err: var(--err);
 }
 
 html,
@@ -80,4 +91,152 @@ body[data-window='present'] {
 }
 ::-webkit-scrollbar-track {
   background: transparent;
+}
+
+/* ---------------------------------------------------------------------------
+   Компонентные классы.
+
+   Собраны здесь, а не размазаны по разметке цепочками утилит: одинаковые
+   элементы должны выглядеть одинаково без копирования десятка классов,
+   а правка вида кнопки должна быть правкой в одном месте.
+--------------------------------------------------------------------------- */
+
+@layer components {
+  /* --- кнопки --- */
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-1.5 rounded border border-line
+           px-3 py-1.5 text-xs transition-colors;
+  }
+  .btn:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--fg) 7%, transparent);
+  }
+  .btn:disabled {
+    @apply cursor-default opacity-40;
+  }
+
+  .btn-primary {
+    @apply border-transparent font-semibold;
+    background: var(--accent);
+    color: var(--on-accent);
+  }
+  .btn-primary:hover:not(:disabled) {
+    filter: brightness(1.08);
+  }
+
+  .btn-go {
+    @apply border-transparent font-semibold;
+    background: var(--ok);
+    color: var(--on-accent);
+  }
+  .btn-stop {
+    color: var(--err);
+  }
+  .btn-alarm {
+    @apply border-transparent font-semibold;
+    background: var(--err);
+    color: var(--on-accent);
+  }
+
+  .btn-on {
+    @apply border-transparent font-semibold;
+    background: var(--accent);
+    color: var(--on-accent);
+  }
+
+  /* Компактный вариант для плотных мест: палитра, выбор языка. */
+  .btn-sm {
+    @apply px-2 py-0.5 text-[11px];
+  }
+
+  /* --- поверхности --- */
+
+  .surface {
+    @apply rounded-lg border border-line;
+    background: var(--panel);
+  }
+
+  .toolbar {
+    @apply shrink-0 border-b border-line p-2;
+  }
+
+  .stage {
+    @apply relative min-h-0 flex-1;
+    background: var(--slide-bg);
+  }
+
+  /* --- меню --- */
+
+  .menu {
+    @apply absolute right-0 top-9 z-20 w-72 rounded-lg border border-line p-2 shadow-2xl;
+    background: var(--panel);
+  }
+  .menu-item {
+    @apply w-full rounded px-2 py-1.5 text-left text-xs;
+  }
+  .menu-item:hover {
+    background: color-mix(in srgb, var(--fg) 7%, transparent);
+  }
+  .menu-label {
+    @apply px-2 pb-1 text-[10px] uppercase tracking-wide;
+    color: var(--dim);
+  }
+  .menu-group {
+    @apply mb-2 border-b border-line pb-2;
+  }
+  .menu-group:last-child {
+    @apply mb-0 border-0 pb-0;
+  }
+
+  /* --- переписка --- */
+
+  .bubble {
+    @apply max-w-[88%] rounded-2xl px-3 py-2 text-left text-[14px] leading-snug transition-colors;
+  }
+  .bubble-mine {
+    @apply rounded-br-md;
+    background: var(--bubble-mine);
+  }
+  .bubble-room {
+    @apply rounded-bl-md;
+    background: var(--bubble-room);
+  }
+  .bubble:hover {
+    filter: brightness(1.15);
+  }
+  .bubble-meta {
+    @apply mt-0.5 flex items-center gap-1.5 px-1 text-[10px];
+    color: var(--dim);
+  }
+
+  /* --- мелочи --- */
+
+  .field {
+    @apply w-full rounded border border-line px-2 py-1.5 text-sm outline-none;
+    background: var(--ink);
+    color: var(--fg);
+  }
+  .field:focus {
+    border-color: var(--accent);
+  }
+
+  .chip {
+    @apply rounded-full border border-line px-3 py-1 text-xs;
+    color: var(--dim);
+  }
+  .chip-on {
+    border-color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 14%, transparent);
+    color: var(--fg);
+  }
+
+  .hint {
+    @apply border-l-2 pl-2 text-xs;
+    border-color: var(--warn);
+    color: var(--dim);
+  }
+
+  .dot {
+    @apply h-2 w-2 shrink-0 rounded-full;
+  }
 }

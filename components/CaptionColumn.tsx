@@ -86,19 +86,3 @@ export function CaptionColumn({
   );
 }
 
-/**
- * Сколько места остаётся сбоку при вписывании слайда в окно.
- * Колонка предлагается только когда его достаточно, чтобы текст читался.
- *
- * Потолок обязателен: у портретной колоды свободного остатка около 60%
- * ширины, и без ограничения колонка субтитров получается шире слайда.
- * Геометрически это честно, но выглядит так, будто показывают лог,
- * а слайд приложили сбоку. Излишек оставляем полями.
- */
-export function sideRoom(windowAspect: number, slideAspect: number): number {
-  if (slideAspect >= windowAspect) return 0;
-  return Math.min(1 - slideAspect / windowAspect, SIDE_MAX_FRACTION);
-}
-
-export const SIDE_MIN_FRACTION = 0.16;
-export const SIDE_MAX_FRACTION = 0.34;

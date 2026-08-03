@@ -2,9 +2,12 @@
 
 import { useEffect, useRef, useState } from 'react';
 import type { PageRenderer } from '@/lib/pdf';
-import { fitContain } from '@/lib/pdf';
+import { RENDER } from '@/lib/constants';
+import { fitContain, type Rect } from '@/lib/geometry';
 
-export type SlideRect = { x: number; y: number; w: number; h: number };
+// Прямоугольник слайда описан в geometry — здесь только реэкспорт для
+// компонентов, которые уже на него ссылаются.
+export type SlideRect = Rect;
 
 /**
  * Рендер слайда. Вписывание contain по ОБЕИМ осям (§6): подгонка только
@@ -40,7 +43,7 @@ export function SlideCanvas({
   useEffect(() => {
     if (!renderer || rect.w < 2) return;
     let cancelled = false;
-    const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+    const dpr = Math.min(window.devicePixelRatio || 1, RENDER.MAX_DPR);
 
     renderer
       .render(index, rect.w, dpr)

@@ -1,4 +1,5 @@
 import type { Lang, Utterance } from '../types';
+import { WEB_SPEECH } from '../constants';
 import { getTranslator, translate } from './translator';
 import { uid, type Capabilities, type SpeechProvider, type StartOptions } from './types';
 
@@ -164,7 +165,7 @@ export class FreeProvider implements SpeechProvider {
         this.restartTimer = null;
         this.launch();
         opts.onStatus('listening');
-      }, 150);
+      }, WEB_SPEECH.RESTART_MS);
     };
 
     this.rec = rec;
@@ -176,7 +177,7 @@ export class FreeProvider implements SpeechProvider {
       this.restartTimer = setTimeout(() => {
         this.restartTimer = null;
         this.launch();
-      }, 300);
+      }, WEB_SPEECH.BUSY_RETRY_MS);
     }
   }
 

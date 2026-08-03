@@ -1,35 +1,27 @@
 'use client';
 
 import { create } from 'zustand';
-import type {
-  Annotations,
-  CaptionSettings,
-  ChannelStatus,
-  Entry,
-  Lang,
-  MeetingProfile,
-  Mode,
-  PresentationState,
-  Shape,
-  ShapeKind,
-  Speaker,
-  Utterance,
+import {
+  DEFAULT_CAPTIONS,
+  type Annotations,
+  type CaptionSettings,
+  type ChannelStatus,
+  type Entry,
+  type Lang,
+  type MeetingProfile,
+  type PresentationState,
+  type Shape,
+  type ShapeKind,
+  type Speaker,
+  type Utterance,
 } from './types';
+import { CAPTIONS, SIDE_COLUMN } from './constants';
 import { DEFAULT_PROFILE, cycleLang, targetsFor } from './profile';
 import { applyGlossary, type GlossaryEntry } from './glossary';
 import { translate } from './speech/translator';
 import { PALETTE, nextShapeKind } from './shapes';
 import * as storage from './storage';
 
-const DEFAULT_CAPTIONS: CaptionSettings = {
-  layout: 'reserve',
-  fontSize: 40,
-  bandHeight: 22,
-  color: '#ffffff',
-  background: 'rgba(0,0,0,0.62)',
-  visible: true,
-  showAudience: true,
-};
 
 export type CaptionLine = { text: string; final: boolean; speaker: Speaker; at: number };
 
@@ -58,7 +50,6 @@ type State = {
   /** Прогресс массового перевода ленты на язык, которого в ней ещё нет. */
   translating: { lang: Lang; done: number; total: number } | null;
 
-  mode: Mode;
   presenterStatus: ChannelStatus;
   audienceStatus: ChannelStatus;
   toast: { text: string; kind: 'info' | 'warn' | 'error' } | null;
@@ -89,8 +80,6 @@ type State = {
   restoreLog(): Promise<void>;
   setViewLang(lang: Lang): Promise<void>;
 
-  setMode(m: Mode): void;
-  cycleMode(): void;
   setStatus(ch: Speaker, s: ChannelStatus): void;
   cyclePresenterLang(): Lang | null;
   toast_(text: string, kind?: 'info' | 'warn' | 'error'): void;
@@ -118,7 +107,6 @@ export const useStore = create<State>((set, get) => ({
   viewLang: null,
   translating: null,
 
-  mode: 'presenting',
   presenterStatus: 'idle',
   audienceStatus: 'idle',
   toast: null,
@@ -255,7 +243,7 @@ export const useStore = create<State>((set, get) => ({
 
     if (allowed && captionText) {
       // Реплика зала старше 15 секунд уже неактуальна и только собьёт зал (§9).
-      const stale = speaker === 'audience' && u.durationMs !== undefined && performance.now() - u.offsetMs > 15_000;
+      const stale = speaker === 'audience' && u.durationMs !== undefined && performance.now() - u.offsetMs > CAPTIONS.MAX_AUDIENCE_AGE_MS;
       if (!stale) line = { text: captionText, final: true, speaker, at: performance.now() };
     }
 
@@ -361,13 +349,6 @@ export const useStore = create<State>((set, get) => ({
     set({ translating: null });
   },
 
-  setMode(m) {
-    set({ mode: m });
-  },
-  cycleMode() {
-    const order: Mode[] = ['presenting', 'qa', 'both'];
-    set({ mode: order[(order.indexOf(get().mode) + 1) % order.length] });
-  },
 
   setStatus(ch, s) {
     set(ch === 'presenter' ? { presenterStatus: s } : { audienceStatus: s });
@@ -402,7 +383,7 @@ export const useStore = create<State>((set, get) => ({
         if (e.speaker === 'presenter') return true;
         return s.captions.showAudience && e.origLang !== cl;
       })
-      .slice(-14)
+      .slice(-SIDE_COLUMN.HISTORY)
       .map((e) => ({ id: e.id, text: e.texts[cl] as string, speaker: e.speaker }));
 
     return {
@@ -412,7 +393,9 @@ export const useStore = create<State>((set, get) => ({
       shapes: s.annotations[s.slideIndex] ?? [],
       shapeKind: s.shapeKind,
       shapeColor: s.shapeColor,
-      status: s.mode === 'qa' ? s.audienceStatus : s.presenterStatus,
+      // В окне показа одна точка состояния: зрителям незачем знать,
+      // какой именно канал сейчас слушает.
+      status: s.presenterStatus === 'listening' || s.audienceStatus === 'listening' ? 'listening' : s.presenterStatus,
       captionLine: s.captionLine
         ? { text: s.captionLine.text, final: s.captionLine.final, speaker: s.captionLine.speaker }
         : null,

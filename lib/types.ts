@@ -102,6 +102,16 @@ export type CaptionSettings = {
   showAudience: boolean;
 };
 
+export const DEFAULT_CAPTIONS: CaptionSettings = {
+  layout: 'reserve',
+  fontSize: 40,
+  bandHeight: 22,
+  color: '#ffffff',
+  background: 'rgb(0 0 0 / 0.62)',
+  visible: true,
+  showAudience: true,
+};
+
 /** То, что рисует окно Presentation. Больше оно ничего не знает. */
 export type PresentationState = {
   slideIndex: number;
@@ -120,3 +130,19 @@ export type PresentationState = {
    */
   captionHistory: { id: string; text: string; speaker: Speaker }[];
 };
+
+/** Состояние окна показа до первого снимка от Control. Отдельная функция,
+ *  а не константа: объект уезжает в setState и не должен быть общим. */
+export function emptyPresentationState(): PresentationState {
+  return {
+    slideIndex: 0,
+    slideCount: 0,
+    captions: { ...DEFAULT_CAPTIONS },
+    shapes: [],
+    shapeKind: 'rect',
+    shapeColor: 'rgb(250 204 21 / 0.35)',
+    status: 'idle',
+    captionLine: null,
+    captionHistory: [],
+  };
+}
