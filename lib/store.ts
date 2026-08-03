@@ -48,6 +48,9 @@ type State = {
 
   entries: Entry[];
   captionLine: CaptionLine | null;
+  /** Промежуточный результат. В расшаренную полосу не идёт (§9) —
+   *  живёт только в Control как признак, что распознавание слышит. */
+  partial: string | null;
 
   mode: Mode;
   presenterStatus: ChannelStatus;
@@ -104,6 +107,7 @@ export const useStore = create<State>((set, get) => ({
 
   entries: [],
   captionLine: null,
+  partial: null,
 
   mode: 'presenting',
   presenterStatus: 'idle',
@@ -194,6 +198,15 @@ export const useStore = create<State>((set, get) => ({
    * никакой логики «кто говорил, значит показать то-то» (§10).
    */
   ingest(u, speaker, isFinal) {
+    // Промежуточный результат в лог НЕ попадает. Фраза складывается туда
+    // после того, как договорена — иначе лог наполняется строками-обрубками
+    // с пустыми ячейками перевода, и связного текста из него не получается.
+    // Живой признак работы распознавания живёт отдельно, в панели (§10).
+    if (!isFinal) {
+      set({ partial: speaker === 'presenter' ? u.origText : null });
+      return;
+    }
+
     const { entries, profile, slideIndex, glossary, captions } = get();
 
     const texts: Partial<Record<Lang, string>> = {};
@@ -213,7 +226,7 @@ export const useStore = create<State>((set, get) => ({
       origLang: u.origLang,
       origText: u.origText,
       texts: existing >= 0 ? { ...entries[existing].texts, ...texts } : texts,
-      isFinal,
+      isFinal: true,
     };
 
     let next: Entry[];
@@ -234,11 +247,11 @@ export const useStore = create<State>((set, get) => ({
     if (allowed && captionText) {
       // Реплика зала старше 15 секунд уже неактуальна и только собьёт зал (§9).
       const stale = speaker === 'audience' && u.durationMs !== undefined && performance.now() - u.offsetMs > 15_000;
-      if (!stale) line = { text: captionText, final: isFinal, speaker, at: performance.now() };
+      if (!stale) line = { text: captionText, final: true, speaker, at: performance.now() };
     }
 
-    set({ entries: next, captionLine: line });
-    if (isFinal) void storage.persistEntries([entry]);
+    set({ entries: next, captionLine: line, partial: null });
+    void storage.persistEntries([entry]);
   },
 
   applyTranslation(id, lang, text) {

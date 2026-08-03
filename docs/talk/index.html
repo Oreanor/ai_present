@@ -1,0 +1,567 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Solving a real problem with AI — a worked example</title>
+<style>
+  /* Слайды 1280×720 (16:9). Печать в PDF: Ctrl+P → Save as PDF,
+     поля None, фоновая графика включена. Готовый PDF грузится
+     в само приложение, о котором доклад. */
+  @page { size: 1280px 720px; margin: 0; }
+
+  :root {
+    --bg:      #0d1117;
+    --panel:   #161b25;
+    --line:    #262e3d;
+    --fg:      #e9ecf3;
+    --dim:     #8b93a6;
+    --accent:  #62a0ff;
+    --ok:      #43d39e;
+    --warn:    #e8b64c;
+    --bad:     #f2726f;
+    --mono: ui-monospace, "Cascadia Code", "SF Mono", Consolas, monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #05070b;
+    color: var(--fg);
+    font-family: system-ui, -apple-system, "Segoe UI", Inter, sans-serif;
+    font-size: 20px;
+    line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .slide {
+    position: relative;
+    width: 1280px;
+    height: 720px;
+    padding: 62px 76px 66px;
+    background: var(--bg);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    page-break-after: always;
+    break-after: page;
+  }
+  .slide + .slide { margin-top: 26px; }
+  @media print { .slide + .slide { margin-top: 0; } }
+
+  /* Номер и тонкая линия сверху — ориентир для докладчика */
+  .slide::before {
+    content: "";
+    position: absolute; inset: 0 0 auto 0; height: 3px;
+    background: linear-gradient(90deg, var(--accent), transparent 62%);
+  }
+  .num {
+    position: absolute; right: 40px; bottom: 26px;
+    font: 600 13px var(--mono); color: #39415280; letter-spacing: .06em;
+  }
+
+  h1 { font-size: 60px; line-height: 1.08; font-weight: 700; letter-spacing: -.02em; }
+  h2 { font-size: 40px; line-height: 1.14; font-weight: 700; letter-spacing: -.015em; margin-bottom: 6px; }
+  .kicker {
+    font: 600 14px/1 var(--mono);
+    color: var(--accent);
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    margin-bottom: 18px;
+  }
+  .lede { font-size: 25px; color: var(--dim); margin-top: 14px; max-width: 62ch; }
+  .body { margin-top: 26px; flex: 1; min-height: 0; }
+
+  ul { list-style: none; }
+  li { position: relative; padding-left: 26px; margin-bottom: 13px; max-width: 82ch; }
+  li::before {
+    content: ""; position: absolute; left: 4px; top: .62em;
+    width: 7px; height: 7px; border-radius: 2px; background: var(--accent);
+  }
+  li.no::before { background: var(--bad); }
+  li.yes::before { background: var(--ok); }
+  b, strong { color: #fff; font-weight: 650; }
+  .q { color: var(--dim); }
+
+  table { border-collapse: collapse; width: 100%; font-size: 18px; }
+  th, td { text-align: left; padding: 9px 14px 9px 0; vertical-align: top; border-bottom: 1px solid var(--line); }
+  th { color: var(--dim); font: 600 13px/1.3 var(--mono); text-transform: uppercase; letter-spacing: .08em; padding-bottom: 11px; }
+  td.mono, .mono { font-family: var(--mono); font-size: 17px; }
+  .ok { color: var(--ok); }  .bad { color: var(--bad); }  .warn { color: var(--warn); }
+
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 34px; }
+  .cols3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; }
+  .card {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 12px; padding: 20px 22px;
+  }
+  .card h3 { font-size: 20px; margin-bottom: 8px; font-weight: 650; }
+  .card p { font-size: 17px; color: var(--dim); }
+
+  .big { font: 700 54px/1 var(--mono); letter-spacing: -.03em; }
+  .big.ok { color: var(--ok); } .big.bad { color: var(--bad); }
+  .unit { font-size: 17px; color: var(--dim); font-family: system-ui; letter-spacing: 0; }
+
+  .note {
+    border-left: 3px solid var(--warn);
+    background: #e8b64c12;
+    padding: 12px 18px; border-radius: 0 8px 8px 0;
+    font-size: 18px; color: #d8c294;
+  }
+
+  /* --- схемы --- */
+  .flow { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .node {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+    padding: 12px 16px; font-size: 17px; text-align: center; min-width: 96px;
+  }
+  .node.hl { border-color: var(--accent); background: #62a0ff14; }
+  .node.dead { border-color: #3a2a2a; color: #7a6a6a; }
+  .node small { display: block; color: var(--dim); font-size: 13px; margin-top: 3px; }
+  .arrow { color: #4a5468; font-size: 22px; }
+
+  .shared {
+    border: 2px dashed var(--accent); border-radius: 12px; padding: 14px;
+    position: relative;
+  }
+  .shared::after {
+    content: "shared into Teams";
+    position: absolute; top: -11px; left: 14px;
+    background: var(--bg); padding: 0 8px;
+    font: 600 12px var(--mono); color: var(--accent); letter-spacing: .08em;
+  }
+  .private {
+    border: 2px dashed #3d4658; border-radius: 12px; padding: 14px; position: relative;
+  }
+  .private::after {
+    content: "never shared";
+    position: absolute; top: -11px; left: 14px;
+    background: var(--bg); padding: 0 8px;
+    font: 600 12px var(--mono); color: var(--dim); letter-spacing: .08em;
+  }
+
+  .title-slide { justify-content: center; }
+  .title-slide .meta { margin-top: 40px; color: var(--dim); font-size: 19px; }
+</style>
+</head>
+<body>
+
+<!-- 1 ─────────────────────────────────────────────────────────── -->
+<section class="slide title-slide">
+  <div class="kicker">A worked example</div>
+  <h1>I could not talk to half<br>my colleagues.</h1>
+  <p class="lede">So I built a thing that fixes it — in a way that was not
+     available to me two years ago. This talk is about <b>how</b> I built it,
+     more than about what it does.</p>
+  <div class="meta mono">Live captions for meetings · built in days, not months · costs zero to run</div>
+  <div class="num">01</div>
+</section>
+
+<!-- 2 ─────────────────────────────────────────────────────────── -->
+<section class="slide">
+  <div class="kicker">The problem</div>
+  <h2>English is our working language.<br>On paper.</h2>
+  <div class="body">
+    <div class="cols">
+      <div>
+        <ul>
+          <li>Written communication among devs is in English, and that works.</li>
+          <li>Spoken communication is <b>where it breaks</b>. Not everyone is
+              comfortable in English at speaking speed.</li>
+          <li>I speak almost no Portuguese. In a meeting I lose the questions,
+              not the slides.</li>
+          <li>Teams has live captions. <b>Translated</b> captions need Premium,
+              and everyone would need it.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>The shape of the problem</h3>
+        <p style="margin-bottom:14px">A presentation is a <b>one-to-many</b> broadcast
+          with a <b>many-to-one</b> Q&amp;A tail. Those two directions have completely
+          different requirements — and that turned out to be the single most
+          important thing to notice.</p>
+        <table>
+          <tr><td>Me → room</td><td class="mono">latency critical</td></tr>
+          <tr><td>Room → me</td><td class="mono">accuracy critical</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="num">02</div>
+</section>
+
+<!-- 3 ─────────────────────────────────────────────────────────── -->
+<section class="slide">
+  <div class="kicker">Why now</div>
+  <h2>The same idea, two years apart</h2>
+  <div class="body">
+    <table>
+      <thead><tr><th style="width:23%"></th><th style="width:38%">Then</th><th>Now</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><b>Speech recognition</b></td>
+          <td class="q">Paid cloud service, API key, per-hour billing</td>
+          <td class="ok">Built into the browser. Free, unlimited.</td>
+        </tr>
+        <tr>
+          <td><b>Translation</b></td>
+          <td class="q">Paid API, network round-trip per phrase</td>
+          <td class="ok">Runs <b>on the device</b>. No network, no key, no quota.</td>
+        </tr>
+        <tr>
+          <td><b>Language detection</b></td>
+          <td class="q">Specialist model, own tuning, own failure modes</td>
+          <td class="ok">One sentence in a prompt.</td>
+        </tr>
+        <tr>
+          <td><b>Building it</b></td>
+          <td class="q">Weeks of a team. Would never be approved for one person's problem.</td>
+          <td class="ok">Days of one person. Approval not required.</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="note" style="margin-top:26px">
+      The interesting shift is the last row. <b>The economics changed before the
+      technology did.</b> Problems that affect one person were never worth a
+      project. Now they are worth an afternoon — so they get solved.
+    </div>
+  </div>
+  <div class="num">03</div>
+</section>
+
+<!-- 4 ─────────────────────────────────────────────────────────── -->
+<section class="slide">
+  <div class="kicker">Method</div>
+  <h2>I did not ask one model. I convened a council.</h2>
+  <div class="body">
+    <div class="flow" style="margin:14px 0 30px">
+      <div class="node hl">Model A<small>plan #1 — good</small></div>
+      <div class="node dead">Model B<small>plan #2 — way off</small></div>
+      <span class="arrow">→</span>
+      <div class="node">Model C<small>critique A</small></div>
+      <div class="node">Model D<small>critique A</small></div>
+      <span class="arrow">→</span>
+      <div class="node hl">Model A<small>revise with critiques</small></div>
+      <span class="arrow">→</span>
+      <div class="node hl">Spec</div>
+    </div>
+    <div class="cols">
+      <div>
+        <ul>
+          <li>Ask <b>2–4 models the same question</b>, independently. Cheap, parallel.</li>
+          <li>Pick the best plan. Here the first one was already good and the
+              second was clearly wrong — <b>that comparison is the value</b>,
+              not the average.</li>
+          <li>Hand the winner to the <b>others as critics</b>, not as authors.</li>
+          <li>Feed the critiques <b>back to the original author</b>.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>This has a name now</h3>
+        <p>Karpathy's <b>LLM Council</b> — parallel query, peer review, synthesis.
+           The variant I used is the <b>adversarial council</b>: reviewers are
+           told to find flaws, not to agree.</p>
+        <p style="margin-top:12px">Why it works: a single model's blind spot
+           becomes the final answer. A critic with a different blind spot
+           does not share it.</p>
+      </div>
+    </div>
+  </div>
+  <div class="num">04</div>
+</section>
+
+<!-- 5 ─────────────────────────────────────────────────────────── -->
+<section class="slide">
+  <div class="kicker">Evidence</div>
+  <h2>What the critics actually changed</h2>
+  <div class="body">
+    <table>
+      <thead><tr><th style="width:34%">First plan said</th><th style="width:30%">Final says</th><th>Why it flipped</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Azure Speech as the engine</td>
+          <td class="ok">No paid services at all</td>
+          <td class="q">Needs a card even for the free tier. Kills adoption by colleagues.</td>
+        </tr>
+        <tr>
+          <td>Accept PPTX, convert with LibreOffice</td>
+          <td class="ok">PDF only</td>
+          <td class="q">Removed a server, an OOXML parser, and a whole class of layout bugs.</td>
+        </tr>
+        <tr>
+          <td>Hand-written audio resampler + unit test</td>
+          <td class="ok">One constructor argument</td>
+          <td class="q">The browser already resamples. A day of work that did not need doing.</td>
+        </tr>
+        <tr>
+          <td>Languages fixed in code</td>
+          <td class="ok">A profile object</td>
+          <td class="q">"Your colleagues have other languages." I had not thought of that at all.</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="note" style="margin-top:24px">
+      Every one of these <b>removed</b> work. The critics did not add features —
+      they deleted plans. That is the highest-value thing a reviewer can do,
+      and it is exactly what a single enthusiastic model will not do to itself.
+    </div>
+  </div>
+  <div class="num">05</div>
+</section>
+
+<!-- 6 ─────────────────────────────────────────────────────────── -->
+<section class="slide">
+  <div class="kicker">Method</div>
+  <h2>The spec is the artifact. Code is downstream.</h2>
+  <div class="body">
+    <div class="cols">
+      <div>
+        <ul>
+          <li>I wrote and rewrote a <b>specification</b>, not prompts.
+              Requirements, acceptance criteria, explicit non-goals.</li>
+          <li>Every reversal from the previous slide is <b>recorded in it with
+              the reason</b>. Six weeks from now I will not re-litigate Azure.</li>
+          <li>The industry calls this <b>spec-driven development</b>, and 2026
+              is the year every agent tool shipped a flavour of it.</li>
+          <li>The stated reason matches my experience: agents write code well
+              and <b>guess intent badly</b>. Drift is the failure mode, not syntax.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>What made the difference</h3>
+        <p><b>Non-goals.</b> "No PPTX. No accounts. No server." Written down,
+           they stop coming back.</p>
+        <p style="margin-top:12px"><b>Acceptance criteria as tests.</b>
+           "Transcripts contain no phrase in the other language" is checkable.
+           "Good quality" is not.</p>
+        <p style="margin-top:12px"><b>A decision log.</b> The spec ends with a
+           table of what was reversed and why — the most reread page.</p>
+      </div>
+    </div>
+  </div>
+  <div class="num">06</div>
+</section>
+
+<!-- 7 ─────────────────────────────────────────────────────────── -->
+<section class="slide">
+  <div class="kicker">Method</div>
+  <h2>Measure before you build. One page of code.</h2>
+  <div class="body">
+    <p class="lede" style="margin-top:0;margin-bottom:22px">Before writing the app I wrote a
+       single HTML file that tested every assumption on the actual laptop.
+       It took minutes and it changed the architecture.</p>
+    <div class="cols3">
+      <div class="card">
+        <div class="big ok">147<span class="unit"> ms</span></div>
+        <p style="margin-top:8px">Browser speech recognition, end of sentence to
+           final text. I had budgeted <b>1000&nbsp;ms</b>.</p>
+      </div>
+      <div class="card">
+        <div class="big bad">~600</div>
+        <p style="margin-top:8px">Requests to a cloud model for a 2-hour talk,
+           at my real speaking rate. Almost certainly over the free daily quota.</p>
+      </div>
+      <div class="card">
+        <div class="big ok">0</div>
+        <p style="margin-top:8px">Drivers, servers and accounts needed —
+           all three risks I had planned mitigations for turned out not to exist.</p>
+      </div>
+    </div>
+    <div class="note" style="margin-top:26px">
+      Both numbers pointed the same way and <b>reversed my default</b>. I had
+      planned to use the cloud model for my own speech. Measurement said: use
+      the browser, keep the cloud for the audience. Twenty times faster,
+      and free.
+    </div>
+  </div>
+  <div class="num">07</div>
+</section>
+
+<!-- 8 ─────────────────────────────────────────────────────────── -->
+<section class="slide">
+  <div class="kicker">The product · live demo</div>
+  <h2>Two windows. Only one is shared.</h2>
+  <div class="body">
+    <div class="cols" style="grid-template-columns: 1.25fr 1fr; align-items:start">
+      <div class="shared">
+        <div style="background:#0a0d13;border-radius:8px;padding:16px;min-height:196px;display:flex;flex-direction:column;justify-content:space-between">
+          <div style="color:#5b6478;font-size:15px" class="mono">slide + annotations drawn live</div>
+          <div style="background:#000000aa;border-radius:6px;padding:10px 12px;font-size:19px;font-weight:600">
+            Executamos o Kubernetes em três regiões.
+          </div>
+        </div>
+        <p style="font-size:16px;color:var(--dim);margin-top:12px">
+          Captions live <b>inside</b> the shared window, so they reach the
+          audience as part of the picture. No bot, no Premium, nothing for
+          them to install.</p>
+      </div>
+      <div class="private">
+        <div style="background:#0a0d13;border-radius:8px;padding:14px;min-height:196px;font-size:15px;line-height:1.7">
+          <div class="mono" style="color:#5b6478;margin-bottom:8px">two full transcripts</div>
+          <div>Here I want to dwell on…</div>
+          <div class="q">Aqui quero deter-me em…</div>
+          <div style="margin-top:8px">Sorry, a quick question…</div>
+          <div class="q">Desculpem, uma pergunta…</div>
+        </div>
+        <p style="font-size:16px;color:var(--dim);margin-top:12px">
+          The log, the originals, my notes — <b>mine only</b>.</p>
+      </div>
+    </div>
+  </div>
+  <div class="num">08</div>
+</section>
+
+<!-- 9 ─────────────────────────────────────────────────────────── -->
+<section class="slide">
+  <div class="kicker">Architecture</div>
+  <h2>Two channels, two engines, one contract</h2>
+  <div class="body">
+    <div class="flow" style="margin-bottom:26px">
+      <div class="node">My mic<small>en / ru / pt</small></div>
+      <span class="arrow">→</span>
+      <div class="node hl">Browser speech<small>on-device translate</small></div>
+      <span class="arrow">→</span>
+      <div class="node hl" style="min-width:150px">SpeechProvider<small>one interface</small></div>
+      <span class="arrow">→</span>
+      <div class="node">Captions<small>audience language</small></div>
+    </div>
+    <div class="flow" style="margin-bottom:28px">
+      <div class="node">Room audio<small>pt / en</small></div>
+      <span class="arrow">→</span>
+      <div class="node hl">Cloud model<small>detects language</small></div>
+      <span class="arrow">→</span>
+      <div class="node hl" style="min-width:150px">SpeechProvider<small>same interface</small></div>
+      <span class="arrow">→</span>
+      <div class="node">Two transcripts</div>
+    </div>
+    <table>
+      <thead><tr><th style="width:26%">Layer</th><th style="width:32%">Choice</th><th>Why that one</th></tr></thead>
+      <tbody>
+        <tr><td>Slides</td><td class="mono">pdf.js in canvas</td><td class="q">Only reliable way to render a print-accurate slide</td></tr>
+        <tr><td>Window sync</td><td class="mono">BroadcastChannel</td><td class="q">Native, no server, works between windows</td></tr>
+        <tr><td>Annotations</td><td class="mono">SVG over canvas</td><td class="q">The PDF is never modified. Browser does hit-testing.</td></tr>
+        <tr><td>Storage</td><td class="mono">IndexedDB + localStorage</td><td class="q">Log survives an accidental F5; nothing leaves the machine</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="num">09</div>
+</section>
+
+<!-- 10 ────────────────────────────────────────────────────────── -->
+<section class="slide">
+  <div class="kicker">The decision that shaped everything</div>
+  <h2>Let the user choose, then let the choice pick the engine</h2>
+  <div class="body">
+    <table>
+      <thead><tr><th style="width:30%"></th>
+        <th style="width:35%">Pin — I say which language</th>
+        <th>Auto — the model detects it</th></tr></thead>
+      <tbody>
+        <tr><td><b>Caption delay</b></td><td class="ok mono">~0.15 s</td><td class="warn mono">~3 s</td></tr>
+        <tr><td><b>Text as you speak</b></td><td class="ok">yes</td><td class="q">no — whole phrase at once</td></tr>
+        <tr><td><b>Daily limits</b></td><td class="ok">none</td><td class="warn">shared quota</td></tr>
+        <tr><td><b>API key</b></td><td class="ok">not needed</td><td class="q">required</td></tr>
+        <tr><td><b>I must remember</b></td><td class="q">press a key before switching</td><td class="ok">nothing</td></tr>
+      </tbody>
+    </table>
+    <div class="cols" style="margin-top:26px">
+      <div class="note" style="border-color:var(--ok);background:#43d39e12;color:#a9e3cb">
+        <b>Mic pinned, room auto.</b> I know which language I am about to speak.
+        I cannot know which language the next question comes in.
+      </div>
+      <div class="card">
+        <p>The setting is not cosmetic — it <b>selects the engine</b>.
+           The app never asks "which provider?", it asks a question the user
+           can actually answer, and derives the rest.</p>
+      </div>
+    </div>
+  </div>
+  <div class="num">10</div>
+</section>
+
+<!-- 11 ────────────────────────────────────────────────────────── -->
+<section class="slide">
+  <div class="kicker">The toolbox</div>
+  <h2>Which fashionable technique, and when</h2>
+  <div class="body">
+    <table style="font-size:17px">
+      <thead><tr>
+        <th style="width:19%">Technique</th><th style="width:26%">What it actually is</th>
+        <th style="width:27%">Worth it when</th><th>Overhead when</th></tr></thead>
+      <tbody>
+        <tr><td class="ok"><b>LLM council</b></td>
+          <td>Several models answer, then critique each other</td>
+          <td>Architecture and irreversible choices</td>
+          <td class="q">Routine code you can just read</td></tr>
+        <tr><td class="ok"><b>Spec-driven</b></td>
+          <td>A versioned spec is the source of truth; code is generated from it</td>
+          <td>Anything you will still be changing next month</td>
+          <td class="q">A script you run once</td></tr>
+        <tr><td class="ok"><b>Dev harness</b></td>
+          <td>Mock provider + a demo route replaying a recorded script</td>
+          <td>Input is a live human, hardware or a paid API</td>
+          <td class="q">Pure functions — just call them</td></tr>
+        <tr><td class="ok"><b>Probe first</b></td>
+          <td>Throwaway page measuring your assumptions on the real machine</td>
+          <td>You are about to design around a guessed number</td>
+          <td class="q">The number is documented and stable</td></tr>
+        <tr><td><b>Evals</b></td>
+          <td>A scored test set that catches quality regressions</td>
+          <td>Model output is the product and it ships repeatedly</td>
+          <td class="q">One-off tool, human in the loop every run</td></tr>
+        <tr><td><b>Voice assistant</b></td>
+          <td>Speech-to-speech session over WebRTC, sub-second</td>
+          <td>Hands and eyes are busy — driving, presenting, surgery</td>
+          <td class="q">Typing is faster and quieter, which is most of the time</td></tr>
+      </tbody>
+    </table>
+    <div class="note" style="margin-top:20px">
+      Green rows are what this project used. The mock provider is the one I
+      would defend hardest: <b>without it, every UI change needs a live human
+      talking into a microphone.</b>
+    </div>
+  </div>
+  <div class="num">11</div>
+</section>
+
+<!-- 12 ────────────────────────────────────────────────────────── -->
+<section class="slide">
+  <div class="kicker">Honest omission · what changes next</div>
+  <h2>Agent orchestration: I did not use it</h2>
+  <div class="body">
+    <div class="cols">
+      <div>
+        <p style="color:var(--dim);margin-bottom:16px">The 2026 patterns are
+           settled — supervisor, pipeline, parallel fan-out, router, hierarchical,
+           evaluator-optimizer. I used none of them, and I think that was right.</p>
+        <ul>
+          <li><b>Why not:</b> one app, one developer, work that is mostly
+              sequential. Orchestration buys parallelism I did not have to spend.</li>
+          <li><b>When it pays:</b> a mechanical change across many files —
+              migrations, audits, sweeps. Fan-out under a supervisor.</li>
+          <li><b>When it pays here, later:</b> the review pass. Several critics
+              on different dimensions, running at once, is exactly my council
+              — just automated instead of copy-pasted.</li>
+        </ul>
+      </div>
+      <div>
+        <h3 style="font-size:22px;margin-bottom:14px">What improves as models improve</h3>
+        <ul style="font-size:18px">
+          <li>On-device translation gets better → the free path stops being
+              the compromise and becomes the default.</li>
+          <li>Streaming speech models mature → detection and low latency stop
+              being a trade-off, and my central design decision <b>evaporates</b>.</li>
+          <li>Cheaper audio tokens → the quota argument disappears.</li>
+          <li>Longer context → the whole meeting summarised, not just transcribed.</li>
+        </ul>
+        <div class="note" style="margin-top:18px;font-size:17px">
+          The provider interface exists so that <b>none of these require
+          rewriting the app</b> — only adding a file.
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="num">12</div>
+</section>
+
+</body>
+</html>

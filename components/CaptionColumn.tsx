@@ -18,12 +18,10 @@ import type { CaptionSettings, Speaker } from '@/lib/types';
  */
 export function CaptionColumn({
   history,
-  live,
   settings,
   width,
 }: {
   history: { id: string; text: string; speaker: Speaker }[];
-  live: { text: string; final: boolean; speaker: Speaker } | null;
   settings: CaptionSettings;
   width: number;
 }) {
@@ -34,13 +32,14 @@ export function CaptionColumn({
   useEffect(() => {
     const el = boxRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [history, live]);
+  }, [history]);
 
   if (!settings.visible) return null;
 
-  // Живую строку не дублируем: она приходит и в history после финала.
-  const showLive = live && !live.final;
-  const size = Math.max(15, Math.round(settings.fontSize * 0.52));
+  // Промежуточные результаты сюда не идут вовсе — по той же причине, что
+  // и в полосу: дописывающийся по слову текст мешает читать. Колонка
+  // показывает только договорённые фразы.
+  const size = Math.max(15, Math.round(settings.fontSize * 0.5));
 
   return (
     <div
@@ -48,40 +47,40 @@ export function CaptionColumn({
       className="absolute inset-y-0 right-0 overflow-hidden"
       style={{ width, background: settings.background, padding: '3% 4%' }}
     >
-      <div className="flex min-h-full flex-col justify-end gap-[0.75em]">
-        {history.map((h, i) => (
-          <p
-            key={h.id}
-            style={{
-              color: h.speaker === 'audience' ? '#cfe3ff' : settings.color,
-              fontSize: size,
-              lineHeight: 1.35,
-              fontWeight: 500,
-              // Старое приглушается, но не исчезает: резкий обрыв читается
-              // как поломка, а плавное угасание — как история.
-              opacity: Math.max(0.28, 1 - (history.length - 1 - i) * 0.16),
-              textShadow: '0 1px 6px rgba(0,0,0,0.7)',
-            }}
-          >
-            {h.speaker === 'audience' ? <span style={{ opacity: 0.7 }}>❝ </span> : null}
-            {h.text}
-          </p>
-        ))}
-
-        {showLive ? (
-          <p
-            style={{
-              color: live.speaker === 'audience' ? '#cfe3ff' : settings.color,
-              fontSize: size,
-              lineHeight: 1.35,
-              fontWeight: 600,
-              opacity: 0.75,
-              textShadow: '0 1px 6px rgba(0,0,0,0.7)',
-            }}
-          >
-            {live.text}
-          </p>
-        ) : null}
+      {/*
+        Связный текст, а не список карточек. Реплики идут одним потоком
+        с обычными абзацными отбивками — так это читается как стенограмма,
+        которую можно догнать глазами, а не как лента уведомлений.
+        Смена говорящего отмечена только цветом и кавычкой: рамки и плашки
+        рвут текст и мешают ровно тому, ради чего колонка существует.
+      */}
+      <div
+        className="flex min-h-full flex-col justify-end"
+        style={{ fontSize: size, lineHeight: 1.4, textShadow: '0 1px 6px rgba(0,0,0,0.7)' }}
+      >
+        {history.map((h, i) => {
+          const prev = history[i - 1];
+          const turned = !prev || prev.speaker !== h.speaker;
+          return (
+            <span
+              key={h.id}
+              style={{
+                color: h.speaker === 'audience' ? '#cfe3ff' : settings.color,
+                fontWeight: 450,
+                // Старое приглушается, но не исчезает: резкий обрыв читается
+                // как поломка, а плавное угасание — как история.
+                opacity: Math.max(0.3, 1 - (history.length - 1 - i) * 0.14),
+                // Отбивка только при смене говорящего — внутри реплик
+                // одного человека текст идёт сплошняком.
+                marginTop: turned && i > 0 ? '0.85em' : 0,
+                display: 'block',
+              }}
+            >
+              {turned && h.speaker === 'audience' ? <span style={{ opacity: 0.65 }}>❝ </span> : null}
+              {h.text}
+            </span>
+          );
+        })}
       </div>
     </div>
   );

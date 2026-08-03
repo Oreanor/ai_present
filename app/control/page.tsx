@@ -448,7 +448,12 @@ export default function ControlPage() {
           })}
         </div>
 
-        <QualityPanel entries={s.entries} profile={s.profile} onCycleLang={() => runCommand('lang')} />
+        <QualityPanel
+          entries={s.entries}
+          profile={s.profile}
+          partial={s.partial}
+          onCycleLang={() => runCommand('lang')}
+        />
 
         <div className="flex shrink-0 items-center gap-2 border-b border-line px-3 py-1.5">
           <input

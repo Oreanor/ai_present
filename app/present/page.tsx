@@ -165,12 +165,7 @@ export default function PresentPage() {
       )}
 
       {sideActive ? (
-        <CaptionColumn
-          history={state.captionHistory}
-          live={state.captionLine}
-          settings={state.captions}
-          width={sideWidth}
-        />
+        <CaptionColumn history={state.captionHistory} settings={state.captions} width={sideWidth} />
       ) : (
         <CaptionBand
           line={state.captions.visible ? state.captionLine : null}
