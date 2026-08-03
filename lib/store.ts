@@ -17,6 +17,7 @@ import type {
 } from './types';
 import { DEFAULT_PROFILE, cycleLang, targetsFor } from './profile';
 import { applyGlossary, type GlossaryEntry } from './glossary';
+import { translate } from './speech/translator';
 import { PALETTE, nextShapeKind } from './shapes';
 import * as storage from './storage';
 
@@ -51,6 +52,11 @@ type State = {
   /** Промежуточный результат. В расшаренную полосу не идёт (§9) —
    *  живёт только в Control как признак, что распознавание слышит. */
   partial: string | null;
+  /** На каком языке читается лента. По умолчанию — язык аудитории:
+   *  лог отдают участникам, и читать его будут прежде всего они. */
+  viewLang: Lang | null;
+  /** Прогресс массового перевода ленты на язык, которого в ней ещё нет. */
+  translating: { lang: Lang; done: number; total: number } | null;
 
   mode: Mode;
   presenterStatus: ChannelStatus;
@@ -81,6 +87,7 @@ type State = {
   flagLast(): void;
   clearLog(): void;
   restoreLog(): Promise<void>;
+  setViewLang(lang: Lang): Promise<void>;
 
   setMode(m: Mode): void;
   cycleMode(): void;
@@ -108,6 +115,8 @@ export const useStore = create<State>((set, get) => ({
   entries: [],
   captionLine: null,
   partial: null,
+  viewLang: null,
+  translating: null,
 
   mode: 'presenting',
   presenterStatus: 'idle',
@@ -311,6 +320,45 @@ export const useStore = create<State>((set, get) => ({
   async restoreLog() {
     const entries = await storage.restoreEntries();
     if (entries.length) set({ entries });
+  },
+
+  /**
+   * Смена языка чтения ленты. Две стенограммы хранятся всегда, поэтому
+   * переключение между ними мгновенно. Для третьего языка версий нет —
+   * догоняем переводом всей ленты разом, на устройстве и бесплатно.
+   *
+   * Вызывается по клику, и это существенно: скачивание языкового пакета
+   * требует свежего пользовательского жеста.
+   */
+  async setViewLang(lang) {
+    set({ viewLang: lang });
+
+    const missing = get().entries.filter((e) => e.isFinal && !e.texts[lang]);
+    if (!missing.length) return;
+
+    set({ translating: { lang, done: 0, total: missing.length } });
+    let done = 0;
+
+    for (const e of missing) {
+      try {
+        const out = await translate(e.origText, e.origLang, lang);
+        const list = get().entries;
+        const i = list.findIndex((x) => x.id === e.id);
+        if (i >= 0) {
+          const next = [...list];
+          next[i] = { ...next[i], texts: { ...next[i].texts, [lang]: applyGlossary(out, get().glossary) } };
+          set({ entries: next });
+          void storage.persistEntries([next[i]]);
+        }
+      } catch {
+        // Пара языков недоступна — оставляем оригинал, но не срываем
+        // остальную ленту из-за одной неудачной строки.
+      }
+      done += 1;
+      set({ translating: { lang, done, total: missing.length } });
+    }
+
+    set({ translating: null });
   },
 
   setMode(m) {

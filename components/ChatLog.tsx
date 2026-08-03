@@ -2,7 +2,7 @@
 
 import { useLayoutEffect, useRef, useState } from 'react';
 import type { Entry, Lang, MeetingProfile } from '@/lib/types';
-import { LANG_NAMES } from '@/lib/types';
+import { ALL_LANGS, LANG_NAMES } from '@/lib/types';
 
 /**
  * Лог как переписка (§10). Одна лента, пузыри, свои реплики справа —
@@ -19,13 +19,17 @@ import { LANG_NAMES } from '@/lib/types';
 export function ChatLog({
   entries,
   profile,
-  query,
+  viewLang,
+  translating,
+  onSetViewLang,
   onToggleFlag,
   onEdit,
 }: {
   entries: Entry[];
   profile: MeetingProfile;
-  query: string;
+  viewLang: Lang | null;
+  translating: { lang: Lang; done: number; total: number } | null;
+  onSetViewLang: (l: Lang) => void;
   onToggleFlag: (id: string) => void;
   onEdit: (id: string, lang: Lang | 'orig', text: string) => void;
 }) {
@@ -33,22 +37,49 @@ export function ChatLog({
   const [stick, setStick] = useState(true);
   const [open, setOpen] = useState<string | null>(null);
 
-  const [mine, theirs] = profile.transcriptLangs;
+  // По умолчанию — язык аудитории: лог отдают участникам встречи,
+  // и читать его будут прежде всего они.
+  const mine = viewLang ?? profile.captionLang;
+  const theirs = profile.transcriptLangs.find((l) => l !== mine) ?? profile.transcriptLangs[0];
 
   useLayoutEffect(() => {
     const el = boxRef.current;
     if (el && stick) el.scrollTop = el.scrollHeight;
   }, [entries, stick]);
 
-  const q = query.trim().toLowerCase();
-  const visible = q
-    ? entries.filter(
-        (e) => e.origText.toLowerCase().includes(q) || Object.values(e.texts).some((t) => t?.toLowerCase().includes(q)),
-      )
-    : entries;
+  const visible = entries;
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
+      {/* Переключатель языка чтения. Две стенограммы хранятся всегда,
+          поэтому между ними переключение мгновенно; третий язык
+          догоняется переводом всей ленты разом, на устройстве. */}
+      <div className="flex shrink-0 items-center gap-1 border-b border-line px-2 py-1">
+        <span className="mr-1 text-[10px] uppercase tracking-wide text-dim">Read in</span>
+        {ALL_LANGS.map((l) => (
+          <button
+            key={l}
+            onClick={() => onSetViewLang(l)}
+            disabled={!!translating}
+            className={`rounded px-2 py-0.5 text-[11px] font-semibold uppercase ${
+              mine === l ? 'bg-accent text-black' : 'border border-line text-dim'
+            } disabled:opacity-40`}
+            title={
+              profile.transcriptLangs.includes(l)
+                ? `Kept in ${LANG_NAMES[l]} — switches instantly`
+                : `Translate the whole conversation into ${LANG_NAMES[l]} on this device`
+            }
+          >
+            {l}
+          </button>
+        ))}
+        {translating ? (
+          <span className="ml-auto text-[10px] text-warn">
+            {translating.done}/{translating.total}
+          </span>
+        ) : null}
+      </div>
+
       <div
         ref={boxRef}
         onScroll={() => {

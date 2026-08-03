@@ -21,7 +21,7 @@ export const HOTKEY_HELP: { keys: string; label: string }[] = [
   { keys: '→ / Space / PgDn', label: 'Next slide' },
   { keys: '← / PgUp', label: 'Previous slide' },
   { keys: 'Home / End', label: 'First / last slide' },
-  { keys: 'M', label: 'Cycle mode' },
+  { keys: 'M', label: 'Start / stop listening' },
   { keys: 'H', label: 'Show / hide captions' },
   { keys: 'L', label: 'Microphone language' },
   { keys: 'G', label: 'Switch mic to Gemini and back' },

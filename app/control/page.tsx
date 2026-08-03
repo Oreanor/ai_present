@@ -18,7 +18,7 @@ import type { SpeechProvider } from '@/lib/speech/types';
 import { quota } from '@/lib/speech/gemini-provider';
 import { fingerprint, loadProfile, loadTier } from '@/lib/storage';
 import { hydrateStore, useStore } from '@/lib/store';
-import { LANG_NAMES, type MeetingProfile, type Mode, type Speaker } from '@/lib/types';
+import { LANG_NAMES, type MeetingProfile, type Speaker } from '@/lib/types';
 import { arrange, openPresentation } from '@/lib/windows';
 
 /**
@@ -39,7 +39,7 @@ export default function ControlPage() {
   const [renderer, setRenderer] = useState<PageRenderer | null>(null);
   const [rect, setRect] = useState<SlideRect>({ x: 0, y: 0, w: 0, h: 0 });
   const [stage, setStage] = useState({ w: 0, h: 0 });
-  const [query, setQuery] = useState('');
+
   const [elapsed, setElapsed] = useState(0);
   const [demo, setDemo] = useState(false);
   const [used, setUsed] = useState(0);
@@ -134,7 +134,11 @@ export default function ControlPage() {
       case 'prev': st.move(-1); break;
       case 'first': st.goto(0); break;
       case 'last': st.goto(st.slideCount - 1); break;
-      case 'mode': st.cycleMode(); break;
+      // Клавиша M больше не переключает «кого слушать» — слушаем обоих
+      // всегда. Она стала тумблером самого прослушивания.
+      case 'mode':
+        void (st.presenterStatus === 'listening' || st.audienceStatus === 'listening' ? stopAll() : startAll());
+        break;
       case 'captions': st.setCaptions({ visible: !st.captions.visible }); break;
       case 'lang': {
         const next = st.cyclePresenterLang();
@@ -246,15 +250,22 @@ export default function ControlPage() {
     st.toast_(`Microphone engine: ${next}`);
   };
 
-  const applyMode = async (m: Mode) => {
+  /**
+   * Слушаем обоих сразу. Выбора «кого слушать» больше нет: он существовал
+   * из-за ограничения Azure на один одновременный поток, а Azure из проекта
+   * ушёл. Нажимать туда-сюда посреди разговора всё равно некогда.
+   *
+   * Микрофон стартует первым и работает, даже если захват звука встречи
+   * отменили: своя речь важнее, и терять её из-за отказа во втором
+   * разрешении нельзя.
+   */
+  const startAll = async () => {
     const st = useStore.getState();
-    st.setMode(m);
     setDemo(false);
+    st.setMode('both');
     const plan = planChannels(st.profile);
-    if (m === 'presenting' || m === 'both') await startChannel('presenter', plan.presenter);
-    else await stopChannel('presenter');
-    if (m === 'qa' || m === 'both') await startChannel('audience', plan.audience);
-    else await stopChannel('audience');
+    await startChannel('presenter', plan.presenter);
+    await startChannel('audience', plan.audience);
   };
 
   const stopAll = async () => {
@@ -291,8 +302,13 @@ export default function ControlPage() {
   const finals = s.entries.filter((e) => e.isFinal);
   const last = finals[finals.length - 1];
   const roomAsked = last?.speaker === 'audience';
-  const bigText = roomAsked ? last.texts[s.profile.transcriptLangs[0]] : s.captionLine?.text;
-  const bigSub = roomAsked ? last.origText : last?.origText;
+  // После перезагрузки живой строки нет, а лог восстановлен из хранилища —
+  // берём последнюю запись, иначе строка врёт «ничего не сказано», а под
+  // ней висит оригинал этого самого «ничего».
+  const bigText = roomAsked
+    ? last.texts[s.profile.transcriptLangs[0]]
+    : (s.captionLine?.text ?? last?.texts[s.profile.captionLang]);
+  const bigSub = bigText && last?.origText !== bigText ? last?.origText : null;
 
   return (
     <main className="flex h-dvh flex-col overflow-hidden">
@@ -339,42 +355,56 @@ export default function ControlPage() {
         </div>
 
         <aside className="flex min-h-0 w-[26%] min-w-[290px] flex-col border-l border-line bg-panel/40">
-          {/* Управление — здесь, а не сверху */}
+          {/* Управление — здесь, а не сверху.
+              Выбора «кого слушать» нет: слушаем обоих всегда. Он существовал
+              из-за ограничения Azure на один одновременный поток, а Azure
+              из проекта ушёл. Web Speech и Gemini — разные сервисы, и
+              переключать их посреди разговора незачем и некогда. */}
           <div className="shrink-0 border-b border-line p-2">
             <div className="flex gap-1">
-              {(['presenting', 'qa', 'both'] as Mode[]).map((m) => (
-                <button
-                  key={m}
-                  onClick={() => void applyMode(m)}
-                  disabled={m === 'both' && !plan.bothAvailable}
-                  className={`flex-1 rounded px-2 py-1.5 text-xs capitalize ${
-                    s.mode === m && listening ? 'bg-ok font-semibold text-black' : 'border border-line'
-                  } disabled:opacity-35`}
-                  title={
-                    m === 'presenting'
-                      ? 'Listen to my microphone only'
-                      : m === 'qa'
-                        ? 'Listen to the meeting audio only'
-                        : plan.bothAvailable
-                          ? 'Listen to both at once'
-                          : plan.warnings.join(' ')
-                  }
-                >
-                  {m === 'qa' ? 'Q&A' : m}
-                </button>
-              ))}
+              <button
+                onClick={() => void (listening ? stopAll() : startAll())}
+                className={`flex-1 rounded px-2 py-2 text-xs font-semibold ${
+                  listening ? 'border border-line text-err' : 'bg-ok text-black'
+                }`}
+                title={
+                  listening
+                    ? 'Stop listening to both the microphone and the meeting'
+                    : 'Listen to my microphone and the meeting audio at the same time'
+                }
+              >
+                {listening ? 'Stop listening' : 'Start listening'}
+              </button>
+              <span className="flex items-center gap-2 rounded border border-line px-2 text-[10px] uppercase text-dim">
+                <span className="flex items-center gap-1" title={`Microphone: ${s.presenterStatus}`}>
+                  <Dot status={s.presenterStatus} />
+                  me
+                </span>
+                <span className="flex items-center gap-1" title={`Meeting audio: ${s.audienceStatus}`}>
+                  <Dot status={s.audienceStatus} />
+                  room
+                </span>
+              </span>
             </div>
 
-            <div className="mt-1 flex gap-1">
-              <button
-                onClick={() => runCommand('captions')}
-                className={`flex-1 rounded px-2 py-1.5 text-xs ${
-                  s.captions.visible ? 'border border-line' : 'bg-err font-semibold text-black'
-                }`}
-                title="Hide the captions from the audience instantly. Shortcut: H"
-              >
-                {s.captions.visible ? 'Captions on' : 'HIDDEN'}
-              </button>
+            <div className="mt-1 flex items-center gap-1">
+              {/* Субтитры скрываются клавишей H — она и есть аварийный
+                  орган. Кнопка в панели дублировала её и занимала место;
+                  осталась в меню и появляется здесь, только когда полоса
+                  уже погашена, чтобы это нельзя было забыть. */}
+              {!s.captions.visible ? (
+                <button
+                  onClick={() => runCommand('captions')}
+                  className="flex-1 rounded bg-err px-2 py-1.5 text-xs font-semibold text-black"
+                  title="Captions are hidden from the audience. Click or press H to bring them back."
+                >
+                  Captions HIDDEN
+                </button>
+              ) : (
+                <span className="flex-1 font-mono text-[11px] text-dim" title="Time since this window was opened">
+                  {fmt(elapsed)}
+                </span>
+              )}
               <button
                 onClick={() => runCommand('lang')}
                 disabled={s.profile.presenterMode.kind !== 'pin'}
@@ -383,15 +413,6 @@ export default function ControlPage() {
               >
                 {modeLabel(s.profile.presenterMode)}
               </button>
-              {listening ? (
-                <button
-                  onClick={() => void stopAll()}
-                  className="rounded border border-line px-2.5 py-1.5 text-xs text-err"
-                  title="Stop listening"
-                >
-                  Stop
-                </button>
-              ) : null}
               <div className="relative">
                 <button
                   onClick={() => setMenu((v) => !v)}
@@ -422,22 +443,12 @@ export default function ControlPage() {
             </div>
           </div>
 
-          <div className="flex shrink-0 items-center gap-2 border-b border-line px-2 py-1.5">
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search the conversation…"
-              className="min-w-0 flex-1 rounded border border-line bg-ink px-2 py-1 text-xs outline-none focus:border-accent"
-            />
-            <span className="font-mono text-[11px] text-dim" title="Time since this window was opened">
-              {fmt(elapsed)}
-            </span>
-          </div>
-
           <ChatLog
             entries={s.entries}
             profile={s.profile}
-            query={query}
+            viewLang={s.viewLang}
+            translating={s.translating}
+            onSetViewLang={(l) => void s.setViewLang(l)}
             onToggleFlag={s.toggleFlag}
             onEdit={s.editEntry}
           />
@@ -447,18 +458,21 @@ export default function ControlPage() {
       {/* Крупная строка внизу */}
       {/* Высота фиксирована: иначе крупная строка выталкивает сама себя
           за край окна и обрезается ровно в тот момент, когда нужна. */}
-      <footer className="flex h-[142px] shrink-0 flex-col justify-center gap-1 border-t border-line bg-black/50 px-6 py-3">
+      {/* По центру и крупно — читается боковым зрением, не отрывая
+          внимания от зала. Высота фиксирована: иначе длинная фраза
+          выталкивает сама себя за край окна. */}
+      <footer className="flex h-[168px] shrink-0 flex-col items-center justify-center gap-1.5 border-t border-line bg-black/50 px-10 py-3">
         <div className="flex items-center gap-2 text-[10px] uppercase tracking-wide text-dim">
           <Dot status={s.mode === 'qa' ? s.audienceStatus : s.presenterStatus} />
-          <span className="shrink-0">
-            {roomAsked ? 'Question from the room' : `On screen — ${LANG_NAMES[s.profile.captionLang]}`}
-          </span>
-          {s.partial ? <span className="truncate italic text-accent/70">{s.partial}</span> : null}
+          <span>{roomAsked ? 'Question from the room' : `On screen — ${LANG_NAMES[s.profile.captionLang]}`}</span>
+          {s.partial ? <span className="max-w-[40ch] truncate italic text-accent/70">{s.partial}</span> : null}
         </div>
-        <p className="line-clamp-2 text-[24px] font-semibold leading-snug">
+        <p className="line-clamp-2 text-center text-[34px] font-semibold leading-tight" style={{ textWrap: 'balance' }}>
           {bigText ?? <span className="text-[16px] font-normal text-dim">Nothing said yet.</span>}
         </p>
-        {bigSub && bigSub !== bigText ? <p className="truncate text-[13px] text-dim">{bigSub}</p> : null}
+        {bigSub && bigSub !== bigText ? (
+          <p className="max-w-[90%] truncate text-center text-[13px] text-dim">{bigSub}</p>
+        ) : null}
       </footer>
     </main>
   );
