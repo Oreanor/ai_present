@@ -312,11 +312,22 @@ export default function ControlPage() {
           Arrange windows
         </button>
         <button
-          onClick={() => void startChannel(demo ? 'audience' : 'presenter', 'mock').then(() => setDemo(true))}
-          className="rounded border border-line px-2.5 py-1 text-xs"
+          onClick={() => {
+            // Тумблер, а не накопление: раньше второе нажатие молча
+            // цепляло мок ко второму каналу, и в логе появлялся «зал»,
+            // которого не было.
+            if (demo) {
+              void stopChannel('presenter');
+              setDemo(false);
+            } else {
+              void startChannel('presenter', 'mock');
+              setDemo(true);
+            }
+          }}
+          className={`rounded px-2.5 py-1 text-xs ${demo ? 'bg-warn font-semibold text-black' : 'border border-line'}`}
           title="Play a recorded script — no microphone, no network, no quota"
         >
-          Demo
+          {demo ? 'Demo running' : 'Demo'}
         </button>
 
         <div className="ml-auto flex items-center gap-1">
@@ -490,6 +501,15 @@ export default function ControlPage() {
             className="rounded border border-line px-2 py-1"
           >
             Flagged
+          </button>
+          <button
+            onClick={() => {
+              if (confirm('Erase the whole log? Export first if you need it.')) s.clearLog();
+            }}
+            className="rounded border border-line px-2 py-1 text-err"
+            title="Demo runs and rehearsals pile up here — clear before a real meeting"
+          >
+            Clear log
           </button>
           <button onClick={() => setWizard(true)} className="ml-auto rounded border border-line px-2 py-1">
             Setup
