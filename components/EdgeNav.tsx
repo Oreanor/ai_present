@@ -1,5 +1,6 @@
 'use client';
 
+import { LAYOUT } from '@/lib/constants';
 import { useT } from '@/lib/ui-prefs';
 
 /**
@@ -25,7 +26,8 @@ export function EdgeNav({
       onClick={onClick}
       disabled={disabled}
       title={side === 'left' ? t('hintPrevSlide') : t('hintNextSlide')}
-      className={`group absolute inset-y-0 w-16 disabled:pointer-events-none ${side === 'left' ? 'left-0' : 'right-0'}`}
+      style={{ width: LAYOUT.EDGE_NAV_PX }}
+      className={`group absolute inset-y-0 disabled:pointer-events-none ${side === 'left' ? 'left-0' : 'right-0'}`}
     >
       <span
         className={`absolute inset-0 transition-opacity duration-150 ${

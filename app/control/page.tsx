@@ -253,7 +253,6 @@ export default function ControlPage() {
                 onMove={s.moveShape}
                 onUndo={s.undoShape}
               />
-              <AnnotationTools />
               <EdgeNav side="left" onClick={() => s.move(-1)} disabled={s.slideIndex === 0} />
               <EdgeNav side="right" onClick={() => s.move(1)} disabled={s.slideIndex >= s.slideCount - 1} />
               <div className="pointer-events-none absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full bg-black/60 px-2.5 py-0.5 font-mono text-[11px] text-white/60">
@@ -338,6 +337,9 @@ export default function ControlPage() {
           </div>
 
           <ChatLog />
+          {/* Разметка живёт здесь, а не поверх слайда: у краёв слайда лежат
+              зоны перелистывания во всю высоту, и панель ловила их клики. */}
+          {deck ? <AnnotationTools /> : null}
         </aside>
       </div>
 
