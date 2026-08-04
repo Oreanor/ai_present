@@ -173,8 +173,9 @@ body[data-window='present'] {
     background: var(--panel);
   }
 
+  /* Правая колонка узкая, и без внятных полей содержимое лепится к краям. */
   .toolbar {
-    @apply shrink-0 border-b border-line p-2;
+    @apply shrink-0 border-b border-line p-3;
   }
 
   .stage {

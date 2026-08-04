@@ -50,14 +50,14 @@ export function ChatLog() {
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
-      <div className="shrink-0 px-3 pt-2 text-[10px] uppercase tracking-wide text-dim">{t('sectionLog')}</div>
+      <div className="shrink-0 px-4 pt-3 text-[10px] uppercase tracking-wide text-dim">{t('sectionLog')}</div>
       <div
         ref={boxRef}
         onScroll={() => {
           const el = boxRef.current;
           if (el) setStick(el.scrollHeight - el.scrollTop - el.clientHeight < 40);
         }}
-        className="min-h-0 flex-1 space-y-2 overflow-y-auto px-3 py-3"
+        className="min-h-0 flex-1 space-y-2 overflow-y-auto px-4 py-3"
       >
         {entries.length === 0 ? <p className="pt-10 text-center text-xs text-dim">{t('nothingInLog')}</p> : null}
 
