@@ -23,6 +23,7 @@ export const SHAPES: { kind: ShapeKind; glyph: string; label: StringKey }[] = [
   { kind: 'rect', glyph: '▭', label: 'shapeRect' },
   { kind: 'ellipse', glyph: '◯', label: 'shapeEllipse' },
   { kind: 'arrow', glyph: '➜', label: 'shapeArrow' },
+  { kind: 'ink', glyph: '✎', label: 'shapeInk' },
 ];
 
 export function nextShapeKind(k: ShapeKind): ShapeKind {

@@ -63,18 +63,25 @@ export type Entry = {
 
 // --- Разметка поверх слайда (§6а) -----------------------------------------
 
-export type ShapeKind = 'rect' | 'ellipse' | 'arrow';
+export type ShapeKind = 'rect' | 'ellipse' | 'arrow' | 'ink';
 
 /** Координаты нормализованы к области слайда (0..1): окно меняет размер,
  *  Teams масштабирует, компоновка reserve/overlay двигает слайд. */
 export type Shape = {
   id: string;
   kind: ShapeKind;
+  /** Габариты. У росчерка — рамка по точкам: по ней он двигается и ищется. */
   x1: number;
   y1: number;
   x2: number;
   y2: number;
   color: string;
+  /**
+   * Точки росчерка, только для kind:'ink'. Прорежены при вводе: писать
+   * каждый отсчёт указателя значит хранить сотни точек на штрих и гонять
+   * их в localStorage при каждом движении мыши.
+   */
+  points?: { x: number; y: number }[];
 };
 
 export type Annotations = Record<number, Shape[]>;

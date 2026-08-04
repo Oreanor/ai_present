@@ -7,6 +7,7 @@ import { AnnotationTools } from '@/components/AnnotationTools';
 import { CaptionFooter } from '@/components/CaptionFooter';
 import { ChatLog } from '@/components/ChatLog';
 import { ControlMenu } from '@/components/ControlMenu';
+import { ReadInPicker } from '@/components/ReadInPicker';
 import { StatusDot } from '@/components/StatusDot';
 import { DeckGallery } from '@/components/DeckGallery';
 import { EdgeNav } from '@/components/EdgeNav';
@@ -306,17 +307,22 @@ export default function ControlPage() {
               />
             </div>
 
-            <div className="mt-1 flex items-center gap-1">
+            {/* Вторая строка: слева язык чтения, справа время, расход и «⋯».
+                Разными строками они занимали высоту дважды, а связаны не
+                были — это просто всё, чем управляют не голосом. */}
+            <div className="mt-1 flex items-center gap-2">
               {s.captions.visible ? (
-                <span className="flex flex-1 items-center gap-2 font-mono text-[11px] text-dim">
-                  <span title={t('hintElapsed')}>{clock(elapsed)}</span>
-                  {geminiInUse ? <Spend used={used} /> : null}
-                </span>
+                <ReadInPicker />
               ) : (
-                <button onClick={() => runCommand('captions')} className="btn btn-alarm flex-1" title={t('hintCaptionsBack')}>
+                <button onClick={() => runCommand('captions')} className="btn btn-alarm" title={t('hintCaptionsBack')}>
                   {t('captionsHidden')}
                 </button>
               )}
+
+              <span className="ml-auto flex items-center gap-2 font-mono text-[11px] text-dim">
+                <span title={t('hintElapsed')}>{clock(elapsed)}</span>
+                {geminiInUse ? <Spend used={used} /> : null}
+              </span>
 
               <div className="relative">
                 <button onClick={() => setMenu((v) => !v)} className="btn" title={t('menuHint')}>

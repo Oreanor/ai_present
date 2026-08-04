@@ -3,7 +3,7 @@
 import { useRef, useState } from 'react';
 import type { Shape, ShapeKind } from '@/lib/types';
 import { ANNOTATION } from '@/lib/constants';
-import { arrowPath, hitTest } from '@/lib/geometry';
+import { arrowPath, hitTest, inkPath } from '@/lib/geometry';
 import { strokeFor } from '@/lib/shapes';
 
 /**
@@ -41,6 +41,9 @@ export function AnnotationLayer({
   const [drag, setDrag] = useState<{ id: string; dx: number; dy: number } | null>(null);
   const [overShape, setOverShape] = useState(false);
   const startRef = useRef<{ x: number; y: number; px: number; py: number; grabbed: string | null } | null>(null);
+  // Точки текущего росчерка. В ref, а не в state: они копятся на каждом
+  // движении указателя, и перерисовка на каждую точку тут не нужна.
+  const inkRef = useRef<{ x: number; y: number }[]>([]);
 
   const toLocal = (e: React.PointerEvent | React.MouseEvent) => {
     const box = svgRef.current?.getBoundingClientRect();
@@ -63,6 +66,7 @@ export function AnnotationLayer({
     // Рисовать поверх уже размеченного места всё равно некуда, а поправить
     // промах хочется постоянно.
     startRef.current = { ...p, grabbed: pick(p.x, p.y)?.id ?? null };
+    inkRef.current = [{ x: p.x, y: p.y }];
     (e.target as Element).setPointerCapture?.(e.pointerId);
   };
 
@@ -81,8 +85,22 @@ export function AnnotationLayer({
     // удаление порождало бы вырожденную фигуру нулевого размера.
     if (Math.hypot(p.px - start.px, p.py - start.py) < ANNOTATION.DRAG_THRESHOLD_PX) return;
 
-    if (start.grabbed) setDrag({ id: start.grabbed, dx: p.x - start.x, dy: p.y - start.y });
-    else if (kind && color) setDraft({ kind, color, x1: start.x, y1: start.y, x2: p.x, y2: p.y });
+    if (start.grabbed) {
+      setDrag({ id: start.grabbed, dx: p.x - start.x, dy: p.y - start.y });
+      return;
+    }
+    if (!kind || !color) return;
+
+    if (kind === 'ink') {
+      // Точки прореживаем по расстоянию: указатель отдаёт их десятками в
+      // секунду, и без этого один штрих весит сотни точек.
+      const pts = inkRef.current;
+      const last = pts[pts.length - 1];
+      if (!last || Math.hypot(p.x - last.x, p.y - last.y) >= ANNOTATION.INK_MIN_STEP) pts.push({ x: p.x, y: p.y });
+      setDraft({ kind, color, ...inkBounds(pts), points: [...pts] });
+      return;
+    }
+    setDraft({ kind, color, x1: start.x, y1: start.y, x2: p.x, y2: p.y });
   };
 
   const onPointerUp = (e: React.PointerEvent) => {
@@ -100,12 +118,16 @@ export function AnnotationLayer({
       if (start.grabbed) onRemove?.(start.grabbed);
     } else if (start.grabbed) {
       onMove?.(start.grabbed, p.x - start.x, p.y - start.y);
+    } else if (kind === 'ink' && color) {
+      const pts = inkRef.current;
+      if (pts.length >= 2) onAdd?.({ kind, color, ...inkBounds(pts), points: pts });
     } else if (kind && color) {
       // Фигуру строим из точек нажатия и отпускания, а НЕ из draft:
       // быстрый жест может не дать ни одного промежуточного события,
       // и тогда фигура терялась бы молча.
       onAdd?.({ kind, color, x1: start.x, y1: start.y, x2: p.x, y2: p.y });
     }
+    inkRef.current = [];
   };
 
   const onContextMenu = (e: React.MouseEvent) => {
@@ -115,13 +137,7 @@ export function AnnotationLayer({
     onUndo?.();
   };
 
-  const placed = drag
-    ? shapes.map((s) =>
-        s.id === drag.id
-          ? { ...s, x1: s.x1 + drag.dx, y1: s.y1 + drag.dy, x2: s.x2 + drag.dx, y2: s.y2 + drag.dy }
-          : s,
-      )
-    : shapes;
+  const placed = drag ? shapes.map((s) => (s.id === drag.id ? shifted(s, drag.dx, drag.dy) : s)) : shapes;
   const all = draft ? [...placed, { ...draft, id: '__draft' }] : placed;
   const W = 1000;
   const H = rect.h && rect.w ? (1000 * rect.h) / rect.w : 562;
@@ -159,8 +175,42 @@ export function AnnotationLayer({
           return (
             <ellipse key={s.id} cx={x + w / 2} cy={y + h / 2} rx={w / 2} ry={h / 2} fill={s.color} />
           );
+        // Росчерк — линия, а не цепочка отпечатков: полупрозрачные штампы
+        // на стыках накладываются и дают тёмные пятна по всему следу.
+        if (s.kind === 'ink')
+          return (
+            <path
+              key={s.id}
+              d={inkPath(s.points ?? [], W, H)}
+              fill="none"
+              stroke={s.color}
+              strokeWidth={ANNOTATION.INK_WIDTH * W}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          );
         return <path key={s.id} d={arrowPath(s, W, H)} fill={strokeFor(s.color)} />;
       })}
     </svg>
   );
+}
+
+/** Рамка росчерка. По ней он двигается и по ней же ищется под курсором. */
+function inkBounds(pts: { x: number; y: number }[]) {
+  const xs = pts.map((p) => p.x);
+  const ys = pts.map((p) => p.y);
+  return { x1: Math.min(...xs), y1: Math.min(...ys), x2: Math.max(...xs), y2: Math.max(...ys) };
+}
+
+/** Сдвиг фигуры вместе с точками: без них росчерк уезжал бы рамкой, а сам
+ *  оставался на месте. */
+function shifted(s: Shape, dx: number, dy: number): Shape {
+  return {
+    ...s,
+    x1: s.x1 + dx,
+    y1: s.y1 + dy,
+    x2: s.x2 + dx,
+    y2: s.y2 + dy,
+    points: s.points?.map((p) => ({ x: p.x + dx, y: p.y + dy })),
+  };
 }

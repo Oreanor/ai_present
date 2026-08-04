@@ -57,8 +57,20 @@ function nearSegment(px: number, py: number, s: Shape, tol: number): boolean {
   return Math.hypot(px - (s.x1 + t * vx), py - (s.y1 + t * vy)) <= tol;
 }
 
+/** Попадание по росчерку — рядом с любым его звеном. */
+function nearInk(px: number, py: number, s: Shape, tol: number): boolean {
+  const pts = s.points;
+  if (!pts || pts.length < 2) return false;
+  for (let i = 1; i < pts.length; i++) {
+    const seg = { x1: pts[i - 1].x, y1: pts[i - 1].y, x2: pts[i].x, y2: pts[i].y } as Shape;
+    if (nearSegment(px, py, seg, tol)) return true;
+  }
+  return false;
+}
+
 /** Верхняя фигура под точкой: при перекрытии удаляется именно она (§6а). */
 export function hitTest(shapes: Shape[], px: number, py: number, aspect: number): Shape | null {
+  const tol = ANNOTATION.ARROW_HIT_TOLERANCE / Math.max(aspect, 0.1);
   for (let i = shapes.length - 1; i >= 0; i--) {
     const s = shapes[i];
     const hit =
@@ -66,10 +78,35 @@ export function hitTest(shapes: Shape[], px: number, py: number, aspect: number)
         ? inRect(px, py, s)
         : s.kind === 'ellipse'
           ? inEllipse(px, py, s)
-          : nearSegment(px, py, s, ANNOTATION.ARROW_HIT_TOLERANCE / Math.max(aspect, 0.1));
+          : s.kind === 'ink'
+            ? nearInk(px, py, s, tol)
+            : nearSegment(px, py, s, tol);
     if (hit) return s;
   }
   return null;
+}
+
+/**
+ * Путь росчерка. Через середины звеньев квадратичными кривыми: ломаная
+ * из прореженных точек видна углами, а этот способ сглаживает её без
+ * подбора контрольных точек и без зависимости от длины штриха.
+ */
+export function inkPath(pts: { x: number; y: number }[], w: number, h: number): string {
+  if (!pts.length) return '';
+  const p = (i: number) => ({ x: pts[i].x * w, y: pts[i].y * h });
+  const fmt = (x: number, y: number) => `${x.toFixed(2)},${y.toFixed(2)}`;
+
+  const first = p(0);
+  if (pts.length === 1) return `M ${fmt(first.x, first.y)} L ${fmt(first.x + 0.01, first.y)}`;
+
+  let d = `M ${fmt(first.x, first.y)}`;
+  for (let i = 1; i < pts.length - 1; i++) {
+    const a = p(i);
+    const b = p(i + 1);
+    d += ` Q ${fmt(a.x, a.y)} ${fmt((a.x + b.x) / 2, (a.y + b.y) / 2)}`;
+  }
+  const last = p(pts.length - 1);
+  return d + ` L ${fmt(last.x, last.y)}`;
 }
 
 /** Путь толстой стрелки: наконечник на второй точке. */

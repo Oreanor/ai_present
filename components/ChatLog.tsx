@@ -4,7 +4,7 @@ import { memo, useCallback, useLayoutEffect, useRef, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { shownLang, useStore } from '@/lib/store';
 import { transcriptLangs } from '@/lib/profile';
-import { ALL_LANGS, LANG_NAMES, type Entry, type Lang } from '@/lib/types';
+import { LANG_NAMES, type Entry, type Lang } from '@/lib/types';
 import { useT } from '@/lib/ui-prefs';
 
 /**
@@ -23,13 +23,11 @@ export function ChatLog() {
   // Поимённая подписка: промежуточный текст распознавания меняется по
   // нескольку раз в секунду, и подписка на весь стор перерисовывала бы
   // всю ленту на каждое слово.
-  const { entries, profile, viewLang, translating, setViewLang } = useStore(
+  const { entries, profile, viewLang } = useStore(
     useShallow((s) => ({
       entries: s.entries,
       profile: s.profile,
       viewLang: s.viewLang,
-      translating: s.translating,
-      setViewLang: s.setViewLang,
     })),
   );
   const t = useT();
@@ -52,28 +50,6 @@ export function ChatLog() {
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
-      <div className="flex shrink-0 items-center gap-1 border-b border-line px-2 py-1">
-        <span className="mr-1 text-[10px] uppercase tracking-wide text-dim">{t('readIn')}</span>
-        {ALL_LANGS.map((l) => (
-          <button
-            key={l}
-            onClick={() => void setViewLang(l)}
-            disabled={!!translating}
-            className={`btn btn-sm font-semibold uppercase ${shown === l ? 'btn-on' : ''}`}
-            title={
-              kept.includes(l) ? t('hintKeptIn') : t('hintTranslateAll')
-            }
-          >
-            {l}
-          </button>
-        ))}
-        {translating ? (
-          <span className="ml-auto text-[10px] text-warn">
-            {translating.done}/{translating.total}
-          </span>
-        ) : null}
-      </div>
-
       <div
         ref={boxRef}
         onScroll={() => {

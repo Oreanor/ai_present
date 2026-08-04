@@ -182,7 +182,17 @@ export const useStore = create<State>((set, get) => ({
   moveShape(id, dx, dy) {
     const { annotations, slideIndex, docId } = get();
     const list = (annotations[slideIndex] ?? []).map((s) =>
-      s.id === id ? { ...s, x1: s.x1 + dx, y1: s.y1 + dy, x2: s.x2 + dx, y2: s.y2 + dy } : s,
+      s.id === id
+        ? {
+            ...s,
+            x1: s.x1 + dx,
+            y1: s.y1 + dy,
+            x2: s.x2 + dx,
+            y2: s.y2 + dy,
+            // Точки росчерка едут вместе с рамкой, иначе он остаётся на месте.
+            points: s.points?.map((p) => ({ x: p.x + dx, y: p.y + dy })),
+          }
+        : s,
     );
     const next = { ...annotations, [slideIndex]: list };
     storage.saveAnnotations(docId, next);

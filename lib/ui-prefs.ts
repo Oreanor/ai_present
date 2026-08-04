@@ -269,6 +269,7 @@ const DICT = {
   shapeRect: { en: 'Rectangle', pt: 'Retângulo' },
   shapeEllipse: { en: 'Ellipse', pt: 'Elipse' },
   shapeArrow: { en: 'Arrow', pt: 'Seta' },
+  shapeInk: { en: 'Marker', pt: 'Marcador' },
   undoShape: { en: 'Undo the last shape (right-click)', pt: 'Anular a última forma (clique direito)' },
   clearSlideShapes: { en: 'Clear this slide', pt: 'Limpar este diapositivo' },
 } as const;
