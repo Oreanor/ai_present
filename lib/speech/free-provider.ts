@@ -1,7 +1,6 @@
 import type { Lang, Utterance } from '../types';
 import { WEB_SPEECH } from '../constants';
 import { claimFloor, holdsFloor } from './floor';
-import { restoreQuestionMark } from './question';
 import { getTranslator, translate } from './translator';
 import { uid, type Capabilities, type SpeechProvider, type StartOptions } from './types';
 
@@ -214,9 +213,7 @@ export class FreeProvider implements SpeechProvider {
       const res = e.results[i];
       if (!res.isFinal) break; // дальше только промежуточные
 
-      // Знак вопроса Web Speech теряет: интонацию слышит распознаватель,
-      // а знаки ставит текстовая модель уже по одному тексту (question.ts).
-      const text = restoreQuestionMark(res[0].transcript, this.lang);
+      const text = res[0].transcript.trim();
       this.emitted = i + 1;
       if (!text) continue;
 
