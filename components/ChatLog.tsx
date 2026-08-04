@@ -108,6 +108,11 @@ const Bubble = memo(function Bubble({
   onToggle: (id: string) => void;
 }) {
   const t = useT();
+  // Правка прямо в пузыре. Нативный prompt() здесь недопустим: окно
+  // всплывает поверх расшаренного экрана, и его читает зал — а заодно
+  // блокирует всё, включая распознавание, пока его не закроют.
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState('');
   const mine = entry.speaker === 'presenter';
   const main = entry.texts[shown] ?? entry.origText;
 
@@ -153,15 +158,42 @@ const Bubble = memo(function Bubble({
                 {entry.origText}
               </p>
             ) : null}
-            <button
-              onClick={() => {
-                const next = prompt(`${t('fixTextPrompt')} (${LANG_NAMES[shown]})`, main);
-                if (next !== null) useStore.getState().editEntry(entry.id, shown, next);
-              }}
-              className="btn btn-sm mt-1.5"
-            >
-              {t('fixText')}
-            </button>
+            {editing ? (
+              <form
+                className="mt-1.5 flex flex-col gap-1.5"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  useStore.getState().editEntry(entry.id, shown, draft.trim());
+                  setEditing(false);
+                }}
+              >
+                <textarea
+                  autoFocus
+                  rows={2}
+                  value={draft}
+                  onChange={(e) => setDraft(e.target.value)}
+                  className="field text-left text-[13px]"
+                />
+                <div className="flex gap-1.5">
+                  <button type="submit" className="btn btn-sm btn-primary">
+                    {t('save')}
+                  </button>
+                  <button type="button" onClick={() => setEditing(false)} className="btn btn-sm">
+                    {t('cancel')}
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <button
+                onClick={() => {
+                  setDraft(main);
+                  setEditing(true);
+                }}
+                className="btn btn-sm mt-1.5"
+              >
+                {t('fixText')} · {LANG_NAMES[shown]}
+              </button>
+            )}
           </div>
         ) : null}
       </div>

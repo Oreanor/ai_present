@@ -89,12 +89,10 @@ export function ControlMenu({
         </Group>
 
         <Group label={t('session')}>
-          <button
-            className="menu-item text-err"
-            onClick={() => {
-              if (confirm(t('clearLogConfirm'))) state.clearLog();
-            }}
-          >
+          {/* Без подтверждения: системное окно всплывает поверх расшаренного
+              экрана, и его видит зал. Пункт лежит под «⋯», куда во время
+              доклада не заходят, а перед очисткой рядом лежит выгрузка. */}
+          <button className="menu-item text-err" onClick={state.clearLog}>
             {t('clearLog')}
           </button>
           <button className="menu-item" onClick={onOpenWizard}>

@@ -118,10 +118,7 @@ const DICT = {
   perLanguage: { en: 'Transcripts, one file per language', pt: 'Transcrições, um ficheiro por idioma' },
   session: { en: 'Session', pt: 'Sessão' },
   clearLog: { en: 'Clear the log', pt: 'Limpar o registo' },
-  clearLogConfirm: {
-    en: 'Erase the whole log? Export it first if you need it.',
-    pt: 'Apagar todo o registo? Exporte primeiro se precisar dele.',
-  },
+  save: { en: 'Save', pt: 'Guardar' },
   languagesSetup: { en: 'Languages and setup…', pt: 'Idiomas e configuração…' },
   keyboard: { en: 'Keyboard', pt: 'Teclado' },
   packs: { en: 'Translation packs — one click each', pt: 'Pacotes de tradução — um clique cada' },
@@ -259,7 +256,6 @@ const DICT = {
   connectedToControl: { en: 'Connected to Control.', pt: 'Ligado ao Control.' },
 
   // --- сообщения действий ---
-  fixTextPrompt: { en: 'Fix the text', pt: 'Corrigir o texto' },
 
   // --- галерея колод ---
   recentDecks: { en: 'Decks you opened before', pt: 'Apresentações que já abriu' },
