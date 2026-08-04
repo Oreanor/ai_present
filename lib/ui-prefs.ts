@@ -261,6 +261,19 @@ const DICT = {
 
   // --- галерея колод ---
   recentDecks: { en: 'Decks you opened before', pt: 'Apresentações que já abriu' },
+  multiLangHint: {
+    en: 'You can pick several PDFs at once — the same talk in different languages. Read in then switches the slides too.',
+    pt: 'Pode escolher vários PDFs de uma vez — a mesma apresentação em idiomas diferentes. O «Ler em» passa a mudar também os diapositivos.',
+  },
+  whichLangIsWhich: { en: 'Which file is in which language?', pt: 'Que ficheiro está em que idioma?' },
+  firstIsPrimary: {
+    en: 'The first one is the primary version: it is shown whenever the reading language has no file of its own. All files must have the same number of slides.',
+    pt: 'O primeiro é a versão principal: é mostrado sempre que o idioma de leitura não tem ficheiro próprio. Todos os ficheiros têm de ter o mesmo número de diapositivos.',
+  },
+  primary: { en: 'primary', pt: 'principal' },
+  openDeck: { en: 'Open', pt: 'Abrir' },
+  cancel: { en: 'Cancel', pt: 'Cancelar' },
+  langClash: { en: 'Two files share one language.', pt: 'Dois ficheiros têm o mesmo idioma.' },
   openAnother: { en: 'Open another PDF', pt: 'Abrir outro PDF' },
   slidesCount: { en: 'slides', pt: 'diapositivos' },
   forgetDeck: { en: 'Forget this deck', pt: 'Esquecer esta apresentação' },

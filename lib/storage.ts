@@ -4,7 +4,7 @@
 //                  и синхронный localStorage подтормаживал бы главный поток.
 
 import { DEFAULT_PROFILE, normalizeModes } from './profile';
-import type { Annotations, Entry, MeetingProfile, Shape } from './types';
+import { ALL_LANGS, type Annotations, type Entry, type Lang, type MeetingProfile, type Shape } from './types';
 
 const K = {
   profile: 'aip.profile',
@@ -145,6 +145,9 @@ export type DeckRecord = {
    *  его при каждом показе списка значит грузить pdf.js ради миниатюр. */
   thumb: string;
   openedAt: number;
+  /** Языки, для которых у колоды есть свой файл. Первый — основной:
+   *  на него падает показ, когда для выбранного языка перевода нет. */
+  langs: Lang[];
 };
 
 /** Сколько колод помним. Больше — это уже файловый менеджер. */
@@ -152,17 +155,37 @@ const DECK_LIMIT = 8;
 
 const CURRENT = '__current__';
 
-export async function saveDeckFile(
+/**
+ * Сохранить колоду со всеми её языковыми версиями.
+ *
+ * Версии лежат в одной записи, а не отдельными колодами: это один и тот
+ * же доклад, у них общий отпечаток, общая разметка и одно место в
+ * галерее. Порядок files задаёт основной язык — первый.
+ */
+export async function saveDeckFiles(
   docId: string,
-  file: File,
+  files: { lang: Lang; file: File }[],
   meta: { pages: number; thumb: string },
 ): Promise<void> {
-  if (typeof indexedDB === 'undefined') return;
+  if (typeof indexedDB === 'undefined' || !files.length) return;
+  const blobs: Partial<Record<Lang, Blob>> = {};
+  for (const { lang, file } of files) blobs[lang] = file;
+
   const db = await openDb();
   await new Promise<void>((resolve, reject) => {
     const tx = db.transaction(DECK_STORE, 'readwrite');
     const store = tx.objectStore(DECK_STORE);
-    store.put({ docId, name: file.name, blob: file, openedAt: Date.now(), ...meta }, docId);
+    store.put(
+      {
+        docId,
+        name: files[0].file.name,
+        blobs,
+        langs: files.map((f) => f.lang),
+        openedAt: Date.now(),
+        ...meta,
+      },
+      docId,
+    );
     store.put(docId, CURRENT);
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
@@ -171,7 +194,18 @@ export async function saveDeckFile(
   await trimDecks();
 }
 
-type StoredDeck = DeckRecord & { blob: Blob };
+/** Записи прежних версий приложения хранили один файл в blob и не знали
+ *  про языки. Читаем и такие: колода, открытая вчера, обязана открыться. */
+type StoredDeck = DeckRecord & { blob?: Blob; blobs?: Partial<Record<Lang, Blob>> };
+
+function deckBlobs(r: StoredDeck): { lang: Lang; blob: Blob }[] {
+  if (r.blobs) return (r.langs ?? []).map((l) => ({ lang: l, blob: r.blobs![l]! })).filter((x) => x.blob instanceof Blob);
+  return r.blob instanceof Blob ? [{ lang: LEGACY_LANG, blob: r.blob }] : [];
+}
+
+/** Язык, приписываемый старым записям без языковой разметки. Он же
+ *  основной, поэтому показывается всегда — как и раньше. */
+const LEGACY_LANG: Lang = ALL_LANGS[0];
 
 async function allDecks(): Promise<StoredDeck[]> {
   if (typeof indexedDB === 'undefined') return [];
@@ -199,22 +233,35 @@ export async function listDecks(): Promise<DeckRecord[]> {
   const good: DeckRecord[] = [];
 
   for (const r of rows) {
-    const usable = r.blob instanceof Blob && r.blob.size > 0 && typeof r.thumb === 'string' && r.thumb.length > 0;
-    if (usable) good.push({ docId: r.docId, name: r.name, pages: r.pages, thumb: r.thumb, openedAt: r.openedAt });
-    else void forgetDeck(r.docId);
+    const files = deckBlobs(r);
+    const usable = files.length > 0 && files.every((f) => f.blob.size > 0) && typeof r.thumb === 'string' && r.thumb.length > 0;
+    if (usable) {
+      good.push({
+        docId: r.docId,
+        name: r.name,
+        pages: r.pages,
+        thumb: r.thumb,
+        openedAt: r.openedAt,
+        langs: files.map((f) => f.lang),
+      });
+    } else void forgetDeck(r.docId);
   }
 
   return good.sort((a, b) => b.openedAt - a.openedAt);
 }
 
-export async function loadDeckById(docId: string): Promise<File | null> {
+export async function loadDeckById(docId: string): Promise<{ lang: Lang; file: File }[]> {
   const rec = (await allDecks()).find((r) => r.docId === docId);
-  return rec ? new File([rec.blob], rec.name, { type: 'application/pdf' }) : null;
+  if (!rec) return [];
+  return deckBlobs(rec).map(({ lang, blob }) => ({
+    lang,
+    file: new File([blob], rec.name, { type: 'application/pdf' }),
+  }));
 }
 
 /** Последняя открытая — её подхватывает окно показа при старте. */
-export async function loadDeckFile(): Promise<File | null> {
-  if (typeof indexedDB === 'undefined') return null;
+export async function loadDeckFile(): Promise<{ lang: Lang; file: File }[]> {
+  if (typeof indexedDB === 'undefined') return [];
   const db = await openDb();
   const id = await new Promise<string | undefined>((resolve, reject) => {
     const tx = db.transaction(DECK_STORE, 'readonly');
@@ -223,7 +270,7 @@ export async function loadDeckFile(): Promise<File | null> {
     req.onerror = () => reject(req.error);
   });
   db.close();
-  return id ? loadDeckById(id) : null;
+  return id ? loadDeckById(id) : [];
 }
 
 export async function forgetDeck(docId: string): Promise<void> {

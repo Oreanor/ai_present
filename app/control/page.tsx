@@ -26,7 +26,7 @@ import { modeCycle, modeLabel } from '@/lib/profile';
 import { planChannels } from '@/lib/speech/registry';
 import { quota } from '@/lib/speech/gemini-provider';
 import { loadCap, loadProfile, loadTier } from '@/lib/storage';
-import { hydrateStore, useStore } from '@/lib/store';
+import { hydrateStore, shownLang, useStore } from '@/lib/store';
 import type { Lang, LangMode, Speaker } from '@/lib/types';
 import { uid } from '@/lib/speech/types';
 import { initUiPrefs, useT, useTheme, useUiLang } from '@/lib/ui-prefs';
@@ -49,6 +49,7 @@ export default function ControlPage() {
   const s = useStore(
     useShallow((st) => ({
       profile: st.profile,
+      viewLang: st.viewLang,
       captions: st.captions,
       slideIndex: st.slideIndex,
       slideCount: st.slideCount,
@@ -80,9 +81,9 @@ export default function ControlPage() {
   const bus = useRef(getBus());
   const stageRef = useRef<HTMLDivElement>(null);
 
-  const { deck, renderer, terms, recent, load, openRecent, forget } = useDeck();
+  const { variants, primary, terms, recent, load, openRecent, forget } = useDeck();
   const channels = useChannels(terms);
-  const stage = useElementSize(stageRef, [ready, wizard, deck]);
+  const stage = useElementSize(stageRef, [ready, wizard, primary]);
 
   // --- инициализация ------------------------------------------------------
 
@@ -128,8 +129,8 @@ export default function ControlPage() {
    * всплывающее окно только мешает.
    */
   const openDeckAndWindow = useCallback(
-    (file?: File, docId?: string) => {
-      if (file) void load(file);
+    (files?: { lang: Lang; file: File }[], docId?: string) => {
+      if (files) void load(files);
       else if (docId) void openRecent(docId);
     },
     [load, openRecent],
@@ -229,16 +230,21 @@ export default function ControlPage() {
   const geminiInUse = plan.presenter === 'gemini' || plan.audience === 'gemini';
   const shapes = s.annotations[s.slideIndex] ?? [];
 
+  // Показываем версию на языке чтения; если такого файла нет — основную.
+  // Номер слайда общий, поэтому смена языка не сбивает место в докладе.
+  const view = shownLang(s);
+  const shown = primary ? (variants[view] ?? variants[primary]) : undefined;
+
   return (
     <main className="flex h-dvh flex-col overflow-hidden">
       <div className="flex min-h-0 flex-1">
         <div ref={stageRef} className="stage group/stage">
-          {renderer && deck ? (
+          {shown ? (
             <>
               <SlideCanvas
-                renderer={renderer}
+                renderer={shown.renderer}
                 index={s.slideIndex}
-                aspect={deck.aspect}
+                aspect={shown.deck.aspect}
                 areaW={stage.w}
                 areaH={stage.h}
                 onRect={setRect}
@@ -264,7 +270,7 @@ export default function ControlPage() {
           ) : (
             <DeckGallery
               recent={recent}
-              onOpenFile={openDeckAndWindow}
+              onOpenFiles={openDeckAndWindow}
               onOpenRecent={(id) => openDeckAndWindow(undefined, id)}
               onForget={forget}
             />

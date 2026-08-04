@@ -106,8 +106,10 @@ export default function PresentPage() {
   useEffect(() => {
     let cancelled = false;
     const pull = async () => {
-      const f = await loadDeckFile();
-      if (f && !cancelled) await openLocal(f);
+      // Окно показа берёт основную версию: язык чтения живёт в Control,
+      // а сюда приезжает уже готовая картинка состояния.
+      const files = await loadDeckFile();
+      if (files.length && !cancelled) await openLocal(files[0].file);
     };
     void pull();
     return getBus().on((m) => {
