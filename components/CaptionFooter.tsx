@@ -2,7 +2,8 @@
 
 import { useShallow } from 'zustand/react/shallow';
 import { LAYOUT } from '@/lib/constants';
-import { shownLang, useStore } from '@/lib/store';
+import { pickText, subtitlePrefs } from '@/lib/profile';
+import { useStore } from '@/lib/store';
 import { useT } from '@/lib/ui-prefs';
 
 /**
@@ -25,23 +26,20 @@ import { useT } from '@/lib/ui-prefs';
  */
 export function CaptionFooter() {
   const t = useT();
-  const { profile, viewLang, entries, captionLine, partial } = useStore(
+  const { profile, entries, captionLine, partial } = useStore(
     useShallow((s) => ({
       profile: s.profile,
-      viewLang: s.viewLang,
       entries: s.entries,
       captionLine: s.captionLine,
       partial: s.partial,
     })),
   );
 
-  const view = shownLang({ viewLang, profile });
-
   // После перезагрузки живой строки нет — падаем на последнюю запись
   // восстановленного лога, иначе полоса пустует до первой новой реплики.
   const finals = entries.filter((e) => e.isFinal);
   const last = finals[finals.length - 1];
-  const big = captionLine?.text ?? last?.texts[view];
+  const big = captionLine?.text ?? (last && pickText(last.texts, subtitlePrefs(profile, last.speaker)));
 
   // Дублировать перевод оригиналом незачем: когда говорили уже на языке
   // показа, обе строки совпали бы.

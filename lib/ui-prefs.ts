@@ -115,6 +115,7 @@ const DICT = {
   themeLight: { en: 'Light', pt: 'Claro' },
   interfaceLanguage: { en: 'Interface language', pt: 'Idioma da interface' },
   fullLog: { en: 'Full log with originals', pt: 'Registo completo com originais' },
+  transcriptIn: { en: 'Transcript', pt: 'Transcrição' },
   flaggedOnly: { en: 'Flagged items only', pt: 'Apenas itens marcados' },
   perLanguage: { en: 'Transcripts, one file per language', pt: 'Transcrições, um ficheiro por idioma' },
   session: { en: 'Session', pt: 'Sessão' },

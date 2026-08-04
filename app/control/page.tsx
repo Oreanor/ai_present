@@ -22,11 +22,11 @@ import { LAYOUT } from '@/lib/constants';
 import { clock, usd } from '@/lib/format';
 import type { Rect } from '@/lib/geometry';
 import { attachHotkeys, type Command } from '@/lib/hotkeys';
-import { modeCycle, modeLabel } from '@/lib/profile';
+import { captionLangOf, modeCycle, modeLabel } from '@/lib/profile';
 import { planChannels } from '@/lib/speech/registry';
 import { quota } from '@/lib/speech/gemini-provider';
 import { loadApiKey, loadCap, loadProfile, loadTier } from '@/lib/storage';
-import { hydrateStore, shownLang, useStore } from '@/lib/store';
+import { hydrateStore, useStore } from '@/lib/store';
 import type { Lang, LangMode, Speaker } from '@/lib/types';
 import { uid } from '@/lib/speech/types';
 import { initUiPrefs, useT, useTheme, useUiLang } from '@/lib/ui-prefs';
@@ -56,7 +56,6 @@ export default function ControlPage() {
   const s = useStore(
     useShallow((st) => ({
       profile: st.profile,
-      viewLang: st.viewLang,
       captions: st.captions,
       slideIndex: st.slideIndex,
       slideCount: st.slideCount,
@@ -248,14 +247,18 @@ export default function ControlPage() {
   const geminiInUse = plan.presenter === 'gemini' || plan.audience === 'gemini';
   const shapes = s.annotations[s.slideIndex] ?? [];
 
-  // Показываем версию на языке чтения; если такого файла нет — основную.
-  // Номер слайда общий, поэтому смена языка не сбивает место в докладе.
-  const view = shownLang(s);
-  const shown = primary ? (variants[view] ?? variants[primary]) : undefined;
+  // Слайды показываем на языке зала: их читает он. Язык чтения ленты сюда
+  // не вмешивается — им листают лог, а слайд остаётся тем, что видит зал.
+  // Если версии на этом языке нет, берём основную; номер слайда общий.
+  const deckLang = captionLangOf(s.profile);
+  const shown = primary ? (variants[deckLang] ?? variants[primary]) : undefined;
 
+  // Колонка во всю высоту, а полоса субтитров — только под слайдом: во всю
+  // ширину она отрезала переписку снизу и вставала под ней, хотя относится
+  // к слайду, а не к ней.
   return (
-    <main className="flex h-dvh flex-col overflow-hidden">
-      <div className="flex min-h-0 flex-1">
+    <main className="flex h-dvh overflow-hidden">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <div
           ref={stageRef}
           className="stage group/stage"
@@ -318,10 +321,13 @@ export default function ControlPage() {
           {s.toast ? <Toast kind={s.toast.kind} text={s.toast.text} /> : null}
         </div>
 
-        <aside
-          className="flex min-h-0 flex-col border-l border-line"
-          style={{ width: `${LAYOUT.ASIDE_FRACTION * 100}%`, minWidth: LAYOUT.MIN_ASIDE_PX }}
-        >
+        <CaptionFooter />
+      </div>
+
+      <aside
+        className="flex min-h-0 shrink-0 flex-col border-l border-line"
+        style={{ width: `${LAYOUT.ASIDE_FRACTION * 100}%`, minWidth: LAYOUT.MIN_ASIDE_PX }}
+      >
           {/* Старт и оба канала одной строкой: половина ширины под старт,
               по четверти под канал. Лампочка канала и его язык живут в
               одной кнопке — это один вопрос, а разнесённые точка и кнопка
@@ -385,13 +391,8 @@ export default function ControlPage() {
             </div>
           </div>
 
-          <ChatLog />
-        </aside>
-      </div>
-
-      {/* Крупная строка. Высота фиксирована: если считать по содержимому,
-          длинная фраза выталкивает сама себя за край окна. */}
-      <CaptionFooter />
+        <ChatLog />
+      </aside>
     </main>
   );
 }

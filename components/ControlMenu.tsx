@@ -1,13 +1,13 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { download, exportAll, flaggedMarkdown, fullMarkdown } from '@/lib/export';
-import { requiredPairs, transcriptLangs } from '@/lib/profile';
+import { download, exportAll, flaggedMarkdown, fullMarkdown, transcriptMarkdown } from '@/lib/export';
+import { requiredPairs } from '@/lib/profile';
 import { getTranslator, pairAvailability } from '@/lib/speech/translator';
-import { useStore } from '@/lib/store';
+import { shownLang, useStore } from '@/lib/store';
 import { HOTKEY_HELP } from '@/lib/hotkeys';
 import { setTheme, setUiLang, THEMES, UI_LANGS, useT, type Theme, type UiLang } from '@/lib/ui-prefs';
-import type { Lang } from '@/lib/types';
+import { LANG_NAMES, type Lang } from '@/lib/types';
 
 /**
  * Всё, чем не пользуются во время выступления.
@@ -33,6 +33,7 @@ export function ControlMenu({
 }) {
   const state = useStore();
   const t = useT();
+  const shown = shownLang(state);
 
   return (
     <>
@@ -57,21 +58,31 @@ export function ControlMenu({
           ) : null}
         </Group>
 
+        {/* Выгрузка идёт на том языке, который выбран в «Ler em»: лог читают
+            и раздают на нём же, и получить файл на другом языке было бы
+            неожиданностью. Полная выгрузка с оригиналами и обе стенограммы
+            от выбора не зависят — там языки все. */}
         <Group label={t('export')}>
+          <button
+            className="menu-item"
+            onClick={() => download(`transcript-${shown}.md`, transcriptMarkdown(state.entries, shown, state.profile))}
+          >
+            {t('transcriptIn')} · {LANG_NAMES[shown]}
+          </button>
+          <button
+            className="menu-item"
+            onClick={() => download(`follow-up-${shown}.md`, flaggedMarkdown(state.entries, shown))}
+          >
+            {t('flaggedOnly')} · {LANG_NAMES[shown]}
+          </button>
+          <button className="menu-item" onClick={() => exportAll(state.entries, state.profile)}>
+            {t('perLanguage')}
+          </button>
           <button
             className="menu-item"
             onClick={() => download('log-full.md', fullMarkdown(state.entries, state.profile))}
           >
             {t('fullLog')}
-          </button>
-          <button
-            className="menu-item"
-            onClick={() => download('follow-up.md', flaggedMarkdown(state.entries, transcriptLangs(state.profile)[0]))}
-          >
-            {t('flaggedOnly')}
-          </button>
-          <button className="menu-item" onClick={() => exportAll(state.entries, state.profile)}>
-            {t('perLanguage')}
           </button>
         </Group>
 

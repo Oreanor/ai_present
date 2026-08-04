@@ -17,7 +17,7 @@ import {
   type Utterance,
 } from './types';
 import { CAPTIONS, SIDE_COLUMN } from './constants';
-import { DEFAULT_PROFILE, captionLangOf, modeCycle, nextMode, targetsFor, transcriptLangs } from './profile';
+import { DEFAULT_PROFILE, captionLangOf, modeCycle, nextMode, pickText, subtitlePrefs, targetsFor, transcriptLangs } from './profile';
 import { applyGlossary, type GlossaryEntry } from './glossary';
 import { translate } from './speech/translator';
 import { PALETTE, nextShapeKind } from './shapes';
@@ -275,15 +275,14 @@ export const useStore = create<State>((set, get) => ({
       next = [...entries, entry];
     }
 
-    // Полоса субтитров идёт на языке чтения — том же, что и лента.
-    // Раньше это был жёстко язык из профиля, и переключатель над лентой
-    // менял её, а полосу оставлял на прежнем языке: два разных языка в
-    // одном окне, которое смотрит зал.
-    const view = shownLang(get());
-    const captionText = texts[view];
+    // Субтитр обращён к ДРУГОЙ стороне: сказанное ведущим зал читает на
+    // своём языке, вопрос из зала ведущий читает на своём. Язык чтения
+    // ленты сюда не вмешивается — им листают лог, а не следят за речью.
+    const sub = subtitlePrefs(profile, speaker);
+    const captionText = pickText(texts, sub);
     let line = get().captionLine;
-    const audienceSaidViewLang = speaker === 'audience' && u.origLang === view;
-    const allowed = speaker === 'presenter' || (captions.showAudience && !audienceSaidViewLang);
+    const roomAlreadyClear = speaker === 'audience' && u.origLang === sub[0];
+    const allowed = speaker === 'presenter' || (captions.showAudience && !roomAlreadyClear);
 
     if (allowed && captionText) {
       // Реплика зала старше 15 секунд уже неактуальна и только собьёт зал (§9).
@@ -297,6 +296,7 @@ export const useStore = create<State>((set, get) => ({
     // Язык чтения может не входить в стенограммы — тогда провайдер на него
     // не переводит. Догоняем на устройстве: иначе выбранный зрителем язык
     // работал бы только для того, что уже сказано.
+    const view = shownLang(get());
     if (!texts[view] && u.origLang !== view) {
       void translate(u.origText, u.origLang, view)
         .then((out) => get().applyTranslation(u.id, view, out))
@@ -316,7 +316,7 @@ export const useStore = create<State>((set, get) => ({
 
     // Догоняющий перевод дорисовывает полосу, если ждали именно его.
     let line = get().captionLine;
-    if (lang === shownLang(get())) {
+    if (lang === subtitlePrefs(get().profile, next[i].speaker)[0]) {
       const e = next[i];
       const allowed =
         e.speaker === 'presenter' || (get().captions.showAudience && e.origLang !== lang);
@@ -373,15 +373,6 @@ export const useStore = create<State>((set, get) => ({
    */
   async setViewLang(lang) {
     set({ viewLang: lang });
-
-    // Полоса перескакивает на новый язык сразу, не дожидаясь следующей
-    // реплики: переключатель стоит прямо над лентой, и рассинхрон между
-    // ними виден в том же окне.
-    const finals = get().entries.filter((e) => e.isFinal);
-    const last = finals[finals.length - 1];
-    if (last?.texts[lang]) {
-      set({ captionLine: { text: last.texts[lang], final: true, speaker: last.speaker, orig: last.origText === last.texts[lang] ? '' : last.origText, at: performance.now() } });
-    }
 
     const missing = get().entries.filter((e) => e.isFinal && !e.texts[lang]);
     if (!missing.length) return;
@@ -444,7 +435,7 @@ export const useStore = create<State>((set, get) => ({
 
   snapshot() {
     const s = get();
-    const cl = shownLang(s);
+    const cl = captionLangOf(s.profile);
 
     // История для боковой колонки. Собирается ровно по тем же правилам,
     // что и полоса (§9): только captionLang, реплики зала на этом же

@@ -1,4 +1,4 @@
-import { ALL_LANGS, type Lang, type LangMode, type MeetingProfile } from './types';
+import { ALL_LANGS, type Lang, type LangMode, type MeetingProfile, type Speaker } from './types';
 
 // Профиль встречи — ЕДИНСТВЕННОЕ место, где заданы языки (ТЗ §3а).
 // Нигде больше в коде не должно быть литералов 'en' / 'pt' / 'ru'
@@ -39,6 +39,34 @@ export function transcriptLangs(p: MeetingProfile): [Lang, Lang] {
   const first = p.presenterLangs[0] ?? ALL_LANGS[0];
   const second = p.audienceLangs.find((l) => l !== first) ?? ALL_LANGS.find((l) => l !== first) ?? ALL_LANGS[1];
   return [first, second];
+}
+
+/** Язык, на котором ведущий сейчас говорит. В auto — первый из списка. */
+export function presenterLangOf(pr: MeetingProfile): Lang {
+  return pr.presenterMode.kind === 'pin' ? pr.presenterMode.current : (pr.presenterLangs[0] ?? ALL_LANGS[0]);
+}
+
+/**
+ * На каком языке субтитровать реплику — по порядку предпочтения.
+ *
+ * Субтитр всегда обращён к ДРУГОЙ стороне: то, что сказал ведущий, зал
+ * читает на своём языке, а вопрос из зала ведущий читает на своём. Это не
+ * то же самое, что язык чтения ленты: ленту листают потом и в любую
+ * сторону, а субтитр нужен тому, кто прямо сейчас не понял сказанного.
+ *
+ * Список, а не один язык: приколотый язык микрофона может не входить в
+ * стенограммы, и тогда перевода на него просто нет — падаем на язык
+ * стенограммы, а не показываем пустую полосу.
+ */
+export function subtitlePrefs(pr: MeetingProfile, speaker: Speaker): Lang[] {
+  const want = speaker === 'presenter' ? captionLangOf(pr) : presenterLangOf(pr);
+  return [...new Set([want, ...transcriptLangs(pr)])];
+}
+
+/** Первый доступный перевод из списка предпочтений. */
+export function pickText(texts: Partial<Record<Lang, string>>, prefs: Lang[]): string | undefined {
+  for (const l of prefs) if (texts[l]) return texts[l];
+  return undefined;
 }
 
 /**
