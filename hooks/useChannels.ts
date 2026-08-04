@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
 import { transcriptLangs } from '@/lib/profile';
+import { detectProfanity } from '@/lib/easter-egg';
 import { matchVoiceCommand, type VoiceCommand } from '@/lib/voice-commands';
 import { createProvider, planChannels, providerFor, type ProviderId } from '@/lib/speech/registry';
 import type { SpeechProvider } from '@/lib/speech/types';
@@ -97,7 +98,11 @@ export function useChannels(terms: RefObject<string[]>) {
             useStore.setState({ partial: null });
             return;
           }
+          // Реплика записывается как есть: сказанное было сказано, и
+          // подчищать за говорящим стенограмму — не наше дело.
           st.ingest(u, speaker, true);
+          const swore = detectProfanity(u.origText);
+          if (swore) st.apologise(swore);
         },
         onTranslation: (id_, lang, text) => useStore.getState().applyTranslation(id_, lang, text),
         onError: (e) => useStore.getState().toast_(e.message, 'error'),

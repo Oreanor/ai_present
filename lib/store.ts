@@ -49,6 +49,8 @@ type State = {
   deckLangs: Lang[];
   /** Показывать всю колоду миниатюрами — чтобы окинуть её взглядом. */
   overview: boolean;
+  /** Язык извинений, пока они закрывают слайд. null — слайд на месте. */
+  apology: Lang | null;
 
   annotations: Annotations;
   shapeKind: ShapeKind;
@@ -77,6 +79,7 @@ type State = {
   setDeck(docId: string, count: number, aspect: number, langs: Lang[]): void;
   goto(index: number): void;
   setOverview(on: boolean): void;
+  apologise(lang: Lang): void;
   move(delta: number): void;
 
   addShape(s: Shape): void;
@@ -114,6 +117,7 @@ export const useStore = create<State>((set, get) => ({
   docId: '',
   deckLangs: [],
   overview: false,
+  apology: null,
 
   annotations: {},
   shapeKind: 'rect',
@@ -165,6 +169,14 @@ export const useStore = create<State>((set, get) => ({
 
   setOverview(on) {
     set({ overview: on });
+  },
+
+  /** Пасхалка: слайд прячется за извинениями и возвращается сам. */
+  apologise(lang) {
+    set({ apology: lang });
+    setTimeout(() => {
+      if (get().apology === lang) set({ apology: null });
+    }, CAPTIONS.APOLOGY_MS);
   },
 
   move(delta) {

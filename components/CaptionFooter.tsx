@@ -77,15 +77,18 @@ export function CaptionFooter() {
         {t('sectionSubtitles')}
       </div>
 
-      {/* Размер подбирают под зал и один раз, поэтому кнопки мелкие и в
-          углу. Нажатие показывает образец на языке зала: без него размер
+      {/* Столбиком у НИЖНЕГО края: полоса растёт вместе с кеглем, её верх
+          при этом уезжает вверх, и кнопки, привязанные к верху, прыгали бы
+          из-под курсора при каждом нажатии. Низ стоит на месте.
+
+          Нажатие показывает образец на языке зала: без него размер
           выставляют вслепую и проверяют на первой живой реплике. */}
-      <div className="absolute right-2 top-1.5 flex items-center gap-1">
-        <button onClick={() => resize(-CAPTIONS.FONT_STEP)} title={t('smaller')} className="btn btn-sm">
-          −
-        </button>
-        <button onClick={() => resize(CAPTIONS.FONT_STEP)} title={t('bigger')} className="btn btn-sm">
+      <div className="absolute bottom-2 right-2 flex flex-col gap-1">
+        <button onClick={() => resize(CAPTIONS.FONT_STEP)} title={t('bigger')} className="btn btn-sm w-7">
           +
+        </button>
+        <button onClick={() => resize(-CAPTIONS.FONT_STEP)} title={t('smaller')} className="btn btn-sm w-7">
+          −
         </button>
       </div>
 

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { AnnotationLayer } from '@/components/AnnotationLayer';
 import { AnnotationTools } from '@/components/AnnotationTools';
+import { ApologyOverlay } from '@/components/ApologyOverlay';
 import { CaptionFooter } from '@/components/CaptionFooter';
 import { ChatLog } from '@/components/ChatLog';
 import { ControlMenu } from '@/components/ControlMenu';
@@ -56,6 +57,7 @@ export default function ControlPage() {
       slideIndex: st.slideIndex,
       slideCount: st.slideCount,
       overview: st.overview,
+      apology: st.apology,
       annotations: st.annotations,
       shapeKind: st.shapeKind,
       shapeColor: st.shapeColor,
@@ -297,6 +299,7 @@ export default function ControlPage() {
               <EdgeNav side="left" onClick={() => s.move(-1)} disabled={s.slideIndex === 0} />
               <EdgeNav side="right" onClick={() => s.move(1)} disabled={s.slideIndex >= s.slideCount - 1} />
               <FullscreenButton rect={rect} full={full} onToggle={toggleFull} />
+              {s.apology ? <ApologyOverlay rect={rect} lang={s.apology} /> : null}
               <div className="pointer-events-none absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full bg-black/60 px-2.5 py-0.5 font-mono text-[11px] text-white/60">
                 {s.slideIndex + 1} / {s.slideCount}
               </div>
