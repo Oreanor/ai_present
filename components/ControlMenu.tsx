@@ -40,6 +40,41 @@ export function ControlMenu({
       <div className="menu">
         <PackList />
 
+        <Group label={t('session')}>
+          {/* Без подтверждения: системное окно всплывает поверх расшаренного
+              экрана, и его видит зал. Пункт лежит под «⋯», куда во время
+              доклада не заходят, а перед очисткой рядом лежит выгрузка. */}
+          <button className="menu-item text-err" onClick={state.clearLog}>
+            {t('clearLog')}
+          </button>
+          <button className="menu-item" onClick={onOpenWizard}>
+            {t('languagesSetup')}
+          </button>
+          {geminiInUse ? (
+            <p className="px-2 py-1 text-[11px] text-dim">
+              {t('requestsUsed')}: {used}
+            </p>
+          ) : null}
+        </Group>
+
+        <Group label={t('export')}>
+          <button
+            className="menu-item"
+            onClick={() => download('log-full.md', fullMarkdown(state.entries, state.profile))}
+          >
+            {t('fullLog')}
+          </button>
+          <button
+            className="menu-item"
+            onClick={() => download('follow-up.md', flaggedMarkdown(state.entries, transcriptLangs(state.profile)[0]))}
+          >
+            {t('flaggedOnly')}
+          </button>
+          <button className="menu-item" onClick={() => exportAll(state.entries, state.profile)}>
+            {t('perLanguage')}
+          </button>
+        </Group>
+
         <Group label={t('appearance')}>
           <div className="flex gap-1">
             {THEMES.map((v) => (
@@ -68,41 +103,6 @@ export function ControlMenu({
               </button>
             ))}
           </div>
-        </Group>
-
-        <Group label={t('export')}>
-          <button
-            className="menu-item"
-            onClick={() => download('log-full.md', fullMarkdown(state.entries, state.profile))}
-          >
-            {t('fullLog')}
-          </button>
-          <button
-            className="menu-item"
-            onClick={() => download('follow-up.md', flaggedMarkdown(state.entries, transcriptLangs(state.profile)[0]))}
-          >
-            {t('flaggedOnly')}
-          </button>
-          <button className="menu-item" onClick={() => exportAll(state.entries, state.profile)}>
-            {t('perLanguage')}
-          </button>
-        </Group>
-
-        <Group label={t('session')}>
-          {/* Без подтверждения: системное окно всплывает поверх расшаренного
-              экрана, и его видит зал. Пункт лежит под «⋯», куда во время
-              доклада не заходят, а перед очисткой рядом лежит выгрузка. */}
-          <button className="menu-item text-err" onClick={state.clearLog}>
-            {t('clearLog')}
-          </button>
-          <button className="menu-item" onClick={onOpenWizard}>
-            {t('languagesSetup')}
-          </button>
-          {geminiInUse ? (
-            <p className="px-2 py-1 text-[11px] text-dim">
-              {t('requestsUsed')}: {used}
-            </p>
-          ) : null}
         </Group>
 
         <Group label={t('keyboard')}>
