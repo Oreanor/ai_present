@@ -421,9 +421,10 @@ export const useStore = create<State>((set, get) => ({
     const { profile } = get();
     const langs = ch === 'presenter' ? profile.presenterLangs : profile.audienceLangs;
     const mode = ch === 'presenter' ? profile.presenterMode : profile.audienceMode;
-    if (modeCycle(langs).length < 2) return null;
+    const allowAuto = !!storage.loadApiKey();
+    if (modeCycle(langs, allowAuto).length < 2) return null;
 
-    const next = nextMode(langs, mode);
+    const next = nextMode(langs, mode, allowAuto);
     get().setProfile(
       ch === 'presenter' ? { ...profile, presenterMode: next } : { ...profile, audienceMode: next },
     );

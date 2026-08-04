@@ -114,15 +114,19 @@ export function targetsFor(p: MeetingProfile, origLang: Lang): Lang[] {
  * AUTO появляется только при двух и более кандидатах — на одном языке
  * определять нечего, а стоит это дороже всего (§4). Порядок именно такой,
  * чтобы соседние нажатия давали соседние языки, а не прыгали через AUTO.
+ *
+ * Без ключа Gemini AUTO не появляется вовсе: определять язык умеет только
+ * он. Предлагать выбор, который гарантированно кончится красной лампочкой
+ * и сообщением об ошибке, — хуже, чем не предлагать его совсем.
  */
-export function modeCycle(langs: Lang[]): LangMode[] {
+export function modeCycle(langs: Lang[], allowAuto: boolean): LangMode[] {
   const out: LangMode[] = langs.map((l) => ({ kind: 'pin', current: l }));
-  if (langs.length >= 2) out.push({ kind: 'auto' });
+  if (allowAuto && langs.length >= 2) out.push({ kind: 'auto' });
   return out;
 }
 
-export function nextMode(langs: Lang[], m: LangMode): LangMode {
-  const cycle = modeCycle(langs);
+export function nextMode(langs: Lang[], m: LangMode, allowAuto: boolean): LangMode {
+  const cycle = modeCycle(langs, allowAuto);
   const i = cycle.findIndex((x) => sameMode(x, m));
   return cycle[(i + 1) % cycle.length] ?? m;
 }

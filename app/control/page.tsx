@@ -25,7 +25,7 @@ import { attachHotkeys, type Command } from '@/lib/hotkeys';
 import { modeCycle, modeLabel } from '@/lib/profile';
 import { planChannels } from '@/lib/speech/registry';
 import { quota } from '@/lib/speech/gemini-provider';
-import { loadCap, loadProfile, loadTier } from '@/lib/storage';
+import { loadApiKey, loadCap, loadProfile, loadTier } from '@/lib/storage';
 import { hydrateStore, shownLang, useStore } from '@/lib/store';
 import type { Lang, LangMode, Speaker } from '@/lib/types';
 import { uid } from '@/lib/speech/types';
@@ -77,6 +77,9 @@ export default function ControlPage() {
   const [elapsed, setElapsed] = useState(0);
   const [used, setUsed] = useState(0);
   const [menu, setMenu] = useState(false);
+  // Есть ли ключ — от этого зависит, предлагать ли AUTO. Читается один раз
+  // и после мастера: в разметке дёргать хранилище на каждый кадр незачем.
+  const [hasKey, setHasKey] = useState(false);
 
   const bus = useRef(getBus());
   const stageRef = useRef<HTMLDivElement>(null);
@@ -105,6 +108,7 @@ export default function ControlPage() {
       hydrateStore();
       initUiPrefs();
       setWizard(loadProfile() === null);
+      setHasKey(!!loadApiKey());
       applyQuotaLimits();
     } catch (e) {
       console.error('init failed', e);
@@ -219,7 +223,8 @@ export default function ControlPage() {
       <SetupWizard
         onDone={(p) => {
           useStore.getState().setProfile(p);
-          // Тариф и потолок могли поменяться прямо в мастере.
+          // Ключ, тариф и потолок могли поменяться прямо в мастере.
+          setHasKey(!!loadApiKey());
           applyQuotaLimits();
           setWizard(false);
         }}
@@ -302,6 +307,7 @@ export default function ControlPage() {
                 mode={s.profile.presenterMode}
                 langs={s.profile.presenterLangs}
                 hint={t('hintMicLang')}
+                allowAuto={hasKey}
                 onCycle={() => cycleChannel('presenter')}
               />
               <ChannelChip
@@ -310,6 +316,7 @@ export default function ControlPage() {
                 mode={s.profile.audienceMode}
                 langs={s.profile.audienceLangs}
                 hint={t('hintRoomLang')}
+                allowAuto={hasKey}
                 onCycle={() => cycleChannel('audience')}
               />
             </div>
@@ -384,6 +391,7 @@ function ChannelChip({
   mode,
   langs,
   hint,
+  allowAuto,
   onCycle,
 }: {
   label: string;
@@ -391,9 +399,10 @@ function ChannelChip({
   mode: LangMode;
   langs: Lang[];
   hint: string;
+  allowAuto: boolean;
   onCycle: () => void;
 }) {
-  const fixed = modeCycle(langs).length < 2;
+  const fixed = modeCycle(langs, allowAuto).length < 2;
   return (
     <button onClick={onCycle} disabled={fixed} className="channel" title={hint}>
       <StatusDot status={status} />
