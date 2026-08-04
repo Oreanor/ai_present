@@ -275,19 +275,19 @@ export default function ControlPage() {
           className="flex min-h-0 flex-col border-l border-line"
           style={{ width: `${LAYOUT.ASIDE_FRACTION * 100}%`, minWidth: LAYOUT.MIN_ASIDE_PX }}
         >
+          {/* Старт и оба канала одной строкой: половина ширины под старт,
+              по четверти под канал. Лампочка канала и его язык живут в
+              одной кнопке — это один вопрос, а разнесённые точка и кнопка
+              заставляли связывать их глазами. */}
           <div className="toolbar">
-            <button
-              onClick={() => void (channels.listening ? channels.stopAll() : channels.startAll())}
-              className={`btn w-full py-2 ${channels.listening ? 'btn-stop' : 'btn-go'}`}
-              title={channels.listening ? t('hintStop') : t('hintListen')}
-            >
-              {channels.listening ? t('stopListening') : t('startListening')}
-            </button>
-
-            {/* Кто говорит и на каком языке — сразу под стартом и в одном
-                элементе: лампочка канала и его язык это один вопрос, а
-                разнесённые точка и кнопка заставляли связывать их глазами. */}
-            <div className="mt-1 flex gap-1">
+            <div className="flex gap-1">
+              <button
+                onClick={() => void (channels.listening ? channels.stopAll() : channels.startAll())}
+                className={`btn flex-[2] truncate py-2 ${channels.listening ? 'btn-stop' : 'btn-go'}`}
+                title={channels.listening ? t('hintStop') : t('hintListen')}
+              >
+                {channels.listening ? t('stopListening') : t('startListening')}
+              </button>
               <ChannelChip
                 label={t('me')}
                 status={s.presenterStatus}
@@ -387,7 +387,7 @@ function ChannelChip({
   return (
     <button onClick={onCycle} disabled={fixed} className="channel" title={hint}>
       <StatusDot status={status} />
-      <span className="text-[10px] uppercase text-dim">{label}</span>
+      <span className="truncate text-[10px] uppercase text-dim">{label}</span>
       <span className="ml-auto font-mono text-xs font-bold">{modeLabel(mode)}</span>
     </button>
   );

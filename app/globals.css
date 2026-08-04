@@ -157,7 +157,7 @@ body[data-window='present'] {
      Это одна кнопка, а не точка рядом с кнопкой, — состояние канала и
      его язык читаются вместе. */
   .channel {
-    @apply flex flex-1 items-center gap-1.5 rounded border border-line px-2 py-1 leading-none;
+    @apply flex min-w-0 flex-1 items-center gap-1.5 rounded border border-line px-2 py-1 leading-none;
   }
   .channel:hover:not(:disabled) {
     background: color-mix(in srgb, var(--fg) 7%, transparent);
