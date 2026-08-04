@@ -128,6 +128,11 @@ function buildPrompt(sourceLangs: Lang[], targetLangs: Lang[]): string {
     'You are a transcription and translation service inside a live presentation tool. ' +
     `The audio contains one spoken utterance in one of: ${names}. ` +
     'Detect which language it is, transcribe it verbatim without adding or omitting anything, ' +
+    // Просить об этом приходится прямо: без указания модель ставит знаки
+    // по словам, как это делает Web Speech, и вопрос, заданный одной
+    // интонацией, приезжает точкой. Звук у неё есть — надо его слушать.
+    'punctuating from what you hear: end with a question mark when the pitch rises into a question, ' +
+    'even if the wording alone is not interrogative. Keep the same punctuation in the translations. ' +
     `then provide translations. Reply with JSON only, no prose, no markdown: ` +
     `{"lang":"<detected code>","text":"<verbatim transcript>",${fields}}. ` +
     'If a requested translation language equals the detected language, repeat the transcript there. ' +
