@@ -85,6 +85,14 @@ body[data-window='present'] {
   cursor: none;
 }
 
+/* Tailwind v4 отменил курсор-палец у кнопок по умолчанию, и весь
+   интерфейс стал выглядеть нажимаемым только на ощупь. */
+button:not(:disabled),
+label:has(input[type='file']),
+summary {
+  cursor: pointer;
+}
+
 ::-webkit-scrollbar {
   width: 9px;
   height: 9px;
@@ -124,10 +132,6 @@ body[data-window='present'] {
     background: var(--accent);
     color: var(--on-accent);
   }
-  .btn-primary:hover:not(:disabled) {
-    filter: brightness(1.08);
-  }
-
   .btn-go {
     @apply border-transparent font-semibold;
     background: var(--ok);
@@ -146,6 +150,27 @@ body[data-window='present'] {
     @apply border-transparent font-semibold;
     background: var(--accent);
     color: var(--on-accent);
+  }
+
+  /* Заливку на наведении задаём каждому цветному варианту явно.
+     У общего .btn:hover специфичность выше, чем у .btn-go и прочих, и без
+     этого зелёная кнопка под курсором становилась полупрозрачно-серой
+     вместе с текстом — выглядело как исчезнувшая кнопка. */
+  .btn-primary:hover:not(:disabled) {
+    background: var(--accent);
+    filter: brightness(1.1);
+  }
+  .btn-go:hover:not(:disabled) {
+    background: var(--ok);
+    filter: brightness(1.1);
+  }
+  .btn-alarm:hover:not(:disabled) {
+    background: var(--err);
+    filter: brightness(1.1);
+  }
+  .btn-on:hover:not(:disabled) {
+    background: var(--accent);
+    filter: brightness(1.1);
   }
 
   /* Компактный вариант для плотных мест: палитра, выбор языка. */
