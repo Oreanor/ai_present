@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AnnotationLayer } from '@/components/AnnotationLayer';
+import { AnnotationTools } from '@/components/AnnotationTools';
 import { ChatLog } from '@/components/ChatLog';
 import { ControlMenu } from '@/components/ControlMenu';
 import { DeckGallery } from '@/components/DeckGallery';
@@ -23,6 +24,7 @@ import { quota } from '@/lib/speech/gemini-provider';
 import { loadCap, loadProfile, loadTier } from '@/lib/storage';
 import { hydrateStore, useStore } from '@/lib/store';
 import { LANG_NAMES } from '@/lib/types';
+import { uid } from '@/lib/speech/types';
 import { initUiPrefs, useT, useTheme, useUiLang } from '@/lib/ui-prefs';
 
 /**
@@ -203,7 +205,7 @@ export default function ControlPage() {
   return (
     <main className="flex h-dvh flex-col overflow-hidden">
       <div className="flex min-h-0 flex-1">
-        <div ref={stageRef} className="stage">
+        <div ref={stageRef} className="stage group/stage">
           {renderer && deck ? (
             <>
               <SlideCanvas
@@ -214,7 +216,17 @@ export default function ControlPage() {
                 areaH={stage.h}
                 onRect={setRect}
               />
-              <AnnotationLayer shapes={shapes} rect={rect} interactive={false} />
+              <AnnotationLayer
+                shapes={shapes}
+                rect={rect}
+                interactive
+                kind={s.shapeKind}
+                color={s.shapeColor}
+                onAdd={(shape) => s.addShape({ ...shape, id: uid('s') })}
+                onRemove={s.removeShape}
+                onUndo={s.undoShape}
+              />
+              <AnnotationTools />
               <EdgeNav side="left" onClick={() => s.move(-1)} disabled={s.slideIndex === 0} />
               <EdgeNav side="right" onClick={() => s.move(1)} disabled={s.slideIndex >= s.slideCount - 1} />
               <div className="pointer-events-none absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full bg-black/60 px-2.5 py-0.5 font-mono text-[11px] text-white/60">
