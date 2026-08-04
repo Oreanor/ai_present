@@ -192,12 +192,12 @@ export default function ControlPage() {
         case 'last': st.goto(st.slideCount - 1); break;
         case 'shapeKind': st.cycleShapeKind(); break;
         case 'clearSlide': st.clearShapes(false); break;
-        case 'clearAll':
-          if (confirm(t('clearAllShapesConfirm'))) st.clearShapes(true);
-          break;
+        // Без подтверждения: посреди доклада модальное окно хуже потери
+        // разметки, а разметка рисуется заново за секунды.
+        case 'clearAll': st.clearShapes(true); break;
       }
     },
-    [t],
+    [],
   );
 
   useEffect(() => attachHotkeys(runCommand), [runCommand]);

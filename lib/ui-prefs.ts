@@ -259,10 +259,6 @@ const DICT = {
   connectedToControl: { en: 'Connected to Control.', pt: 'Ligado ao Control.' },
 
   // --- сообщения действий ---
-  clearAllShapesConfirm: {
-    en: 'Erase annotations on every slide?',
-    pt: 'Apagar as anotações de todos os diapositivos?',
-  },
   fixTextPrompt: { en: 'Fix the text', pt: 'Corrigir o texto' },
 
   // --- галерея колод ---
