@@ -47,6 +47,8 @@ type State = {
   /** Языки, для которых у колоды есть свой файл. Пустой список — колода
    *  одна на все языки, и переключение языка её не меняет. */
   deckLangs: Lang[];
+  /** Показывать всю колоду миниатюрами — чтобы окинуть её взглядом. */
+  overview: boolean;
 
   annotations: Annotations;
   shapeKind: ShapeKind;
@@ -74,6 +76,7 @@ type State = {
 
   setDeck(docId: string, count: number, aspect: number, langs: Lang[]): void;
   goto(index: number): void;
+  setOverview(on: boolean): void;
   move(delta: number): void;
 
   addShape(s: Shape): void;
@@ -110,6 +113,7 @@ export const useStore = create<State>((set, get) => ({
   deckAspect: 16 / 9,
   docId: '',
   deckLangs: [],
+  overview: false,
 
   annotations: {},
   shapeKind: 'rect',
@@ -148,6 +152,7 @@ export const useStore = create<State>((set, get) => ({
       slideCount: count,
       deckAspect: aspect,
       slideIndex: 0,
+      overview: false,
       annotations: storage.loadAnnotations(docId),
     });
   },
@@ -156,6 +161,10 @@ export const useStore = create<State>((set, get) => ({
     const { slideCount } = get();
     if (slideCount === 0) return;
     set({ slideIndex: Math.max(0, Math.min(slideCount - 1, index)) });
+  },
+
+  setOverview(on) {
+    set({ overview: on });
   },
 
   move(delta) {

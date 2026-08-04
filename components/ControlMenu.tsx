@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { download, exportAll, flaggedMarkdown, fullMarkdown, transcriptMarkdown } from '@/lib/export';
-import { requiredPairs } from '@/lib/profile';
+import { presenterLangOf, requiredPairs } from '@/lib/profile';
+import { commandHelp } from '@/lib/voice-commands';
 import { getTranslator, pairAvailability } from '@/lib/speech/translator';
 import { shownLang, useStore } from '@/lib/store';
 import { HOTKEY_HELP } from '@/lib/hotkeys';
@@ -114,6 +115,16 @@ export function ControlMenu({
               </button>
             ))}
           </div>
+        </Group>
+
+        <Group label={t('voiceCommands')}>
+          {commandHelp(presenterLangOf(state.profile)).map((c) => (
+            <div key={c.phrase} className="flex justify-between gap-2 px-2 py-0.5 text-[11px]">
+              <span className="font-mono text-accent">{c.phrase}</span>
+              <span className="text-dim">{t(c.label)}</span>
+            </div>
+          ))}
+          <p className="px-2 pt-1 text-[10px] leading-snug text-dim">{t('voiceLangNote')}</p>
         </Group>
 
         <Group label={t('keyboard')}>

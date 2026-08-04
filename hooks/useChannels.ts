@@ -2,11 +2,25 @@
 
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
 import { transcriptLangs } from '@/lib/profile';
-import { matchVoiceCommand } from '@/lib/voice-commands';
+import { matchVoiceCommand, type VoiceCommand } from '@/lib/voice-commands';
 import { createProvider, planChannels, providerFor, type ProviderId } from '@/lib/speech/registry';
 import type { SpeechProvider } from '@/lib/speech/types';
 import { useStore } from '@/lib/store';
 import type { Speaker } from '@/lib/types';
+
+/** Исполнение голосовой команды. Обзор закрывается сам, когда просят
+ *  конкретный слайд: раз назвали номер — хотят его, а не список. */
+function runVoiceCommand(cmd: VoiceCommand): void {
+  const st = useStore.getState();
+  switch (cmd.kind) {
+    case 'next': st.move(1); st.setOverview(false); break;
+    case 'prev': st.move(-1); st.setOverview(false); break;
+    case 'first': st.goto(0); st.setOverview(false); break;
+    case 'last': st.goto(st.slideCount - 1); st.setOverview(false); break;
+    case 'goto': st.goto(cmd.slide - 1); st.setOverview(false); break;
+    case 'overview': st.setOverview(true); break;
+  }
+}
 
 /**
  * Управление каналами распознавания.
@@ -77,7 +91,7 @@ export function useChannels(terms: RefObject<string[]>) {
           // в зале, перелистывать доклад не должно.
           const cmd = isPresenter ? matchVoiceCommand(u.origText) : null;
           if (cmd) {
-            st.move(cmd === 'next' ? 1 : -1);
+            runVoiceCommand(cmd);
             // Промежуточный текст обычно гасит сам ingest; здесь его нет,
             // и без этого команда осталась бы висеть под слайдом.
             useStore.setState({ partial: null });

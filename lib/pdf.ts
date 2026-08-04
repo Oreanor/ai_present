@@ -126,12 +126,18 @@ export class PageRenderer {
     return canvas;
   }
 
+  /** Миниатюра первой страницы — обложка колоды в галерее. */
+  thumbnail(pxWidth: number): Promise<string> {
+    return this.thumbnailOf(0, pxWidth);
+  }
+
   /**
-   * Миниатюра для галереи. Мимо кэша: иначе она вытесняет полноразмерный
-   * слайд и подсовывается ему же, пока тот ещё не отрисован.
+   * Миниатюра произвольной страницы. Мимо кэша и мимо this.pages: иначе
+   * обзор из тридцати миниатюр вытеснит полноразмерный слайд и подсунет
+   * его же растянутым, пока тот не перерисуется.
    */
-  async thumbnail(pxWidth: number): Promise<string> {
-    const page = await this.deck.doc.getPage(1);
+  async thumbnailOf(index: number, pxWidth: number): Promise<string> {
+    const page = await this.deck.doc.getPage(index + 1);
     try {
       const base = page.getViewport({ scale: 1 });
       const viewport = page.getViewport({ scale: pxWidth / base.width });

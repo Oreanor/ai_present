@@ -11,8 +11,10 @@ import { ReadInPicker } from '@/components/ReadInPicker';
 import { StatusDot } from '@/components/StatusDot';
 import { DeckGallery } from '@/components/DeckGallery';
 import { EdgeNav } from '@/components/EdgeNav';
+import { FullscreenButton } from '@/components/FullscreenButton';
 import { SlideCanvas } from '@/components/SlideCanvas';
 import { SlideCaptions } from '@/components/SlideCaptions';
+import { SlideOverview } from '@/components/SlideOverview';
 import { KEY_TIERS, SetupWizard } from '@/components/SetupWizard';
 import { useChannels } from '@/hooks/useChannels';
 import { useDeck } from '@/hooks/useDeck';
@@ -41,13 +43,6 @@ import { initUiPrefs, useT, useTheme, useUiLang } from '@/lib/ui-prefs';
  * пользуются раз за встречу. Управление — в правой колонке, всё лишнее
  * под «⋯».
  */
-/** Значок и подпись полноэкранного режима — данными, а не тернарником
- *  прямо в разметке: значок это такая же подпись, только рисунком. */
-const FULLSCREEN = {
-  off: { glyph: '⛶', label: 'enterFullscreen' },
-  on: { glyph: '⇱', label: 'exitFullscreen' },
-} as const;
-
 export default function ControlPage() {
   // Подписка поимённая, а не на весь стор: реплики и промежуточный текст
   // меняются по нескольку раз в секунду, и подписка на всё перерисовывала
@@ -60,6 +55,7 @@ export default function ControlPage() {
       captions: st.captions,
       slideIndex: st.slideIndex,
       slideCount: st.slideCount,
+      overview: st.overview,
       annotations: st.annotations,
       shapeKind: st.shapeKind,
       shapeColor: st.shapeColor,
@@ -294,19 +290,13 @@ export default function ControlPage() {
                 onUndo={s.undoShape}
               />
               <AnnotationTools visible={nearTop} />
+              {s.overview ? <SlideOverview renderer={shown.renderer} count={s.slideCount} /> : null}
               {/* Во весь экран растянут только слайд, нижней полосы там
                   нет — субтитры ложатся поверх него и гаснут сами. */}
               {full ? <SlideCaptions rect={rect} /> : null}
-              <button
-                onClick={toggleFull}
-                title={t(FULLSCREEN[full ? 'on' : 'off'].label)}
-                style={{ right: LAYOUT.EDGE_NAV_PX + 8 }}
-                className="absolute bottom-2 rounded-lg bg-black/70 px-2 py-1 text-[15px] leading-none text-white/80 opacity-0 transition-opacity duration-150 hover:opacity-100 focus:opacity-100 group-hover/stage:opacity-70"
-              >
-                {FULLSCREEN[full ? 'on' : 'off'].glyph}
-              </button>
               <EdgeNav side="left" onClick={() => s.move(-1)} disabled={s.slideIndex === 0} />
               <EdgeNav side="right" onClick={() => s.move(1)} disabled={s.slideIndex >= s.slideCount - 1} />
+              <FullscreenButton rect={rect} full={full} onToggle={toggleFull} />
               <div className="pointer-events-none absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full bg-black/60 px-2.5 py-0.5 font-mono text-[11px] text-white/60">
                 {s.slideIndex + 1} / {s.slideCount}
               </div>
