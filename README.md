@@ -137,6 +137,11 @@ to a button only asks you to remember something.
 | `Tab` | annotation shape: rectangle → ellipse → arrow → marker |
 | `Q` / `Shift+Q` | clear annotations on this slide / everywhere |
 
+Slides also move by voice: say **next** or **back** — in any of the three
+languages — as a whole utterance on its own. Said inside a sentence it is just
+a word and is ignored, and a phrase taken as a command is not written to the
+log: it is control, not something said to the room.
+
 Drag on the slide to draw; the marker draws freehand, for circling and
 highlighting. Press on an existing shape to drag it somewhere else. Click a
 shape to delete it, right-click to undo the last one. **The PDF is never

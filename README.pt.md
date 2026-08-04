@@ -137,6 +137,11 @@ um botão só obriga a decorar mais uma coisa.
 | `Tab` | forma de anotação: retângulo → elipse → seta → marcador |
 | `Q` / `Shift+Q` | limpar anotações deste diapositivo / de todos |
 
+Os diapositivos também mudam por voz: diga **seguinte** ou **anterior** — em
+qualquer dos três idiomas — como uma frase isolada. Dito no meio de uma frase é
+só uma palavra e é ignorado, e uma frase tomada como comando não vai para o
+registo: é controlo, não algo dito à sala.
+
 Arraste sobre o diapositivo para desenhar; o marcador desenha à mão livre, para
 rodear e destacar. Prima uma forma existente para a arrastar para outro sítio.
 Clique numa forma para a apagar, clique com o botão direito para anular a

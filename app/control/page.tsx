@@ -22,11 +22,11 @@ import { LAYOUT } from '@/lib/constants';
 import { clock, usd } from '@/lib/format';
 import type { Rect } from '@/lib/geometry';
 import { attachHotkeys, type Command } from '@/lib/hotkeys';
-import { captionLangOf, modeCycle, modeLabel } from '@/lib/profile';
+import { modeCycle, modeLabel } from '@/lib/profile';
 import { planChannels } from '@/lib/speech/registry';
 import { quota } from '@/lib/speech/gemini-provider';
 import { loadApiKey, loadCap, loadProfile, loadTier } from '@/lib/storage';
-import { hydrateStore, useStore } from '@/lib/store';
+import { hydrateStore, shownLang, useStore } from '@/lib/store';
 import type { Lang, LangMode, Speaker } from '@/lib/types';
 import { uid } from '@/lib/speech/types';
 import { initUiPrefs, useT, useTheme, useUiLang } from '@/lib/ui-prefs';
@@ -56,6 +56,7 @@ export default function ControlPage() {
   const s = useStore(
     useShallow((st) => ({
       profile: st.profile,
+      viewLang: st.viewLang,
       captions: st.captions,
       slideIndex: st.slideIndex,
       slideCount: st.slideCount,
@@ -247,10 +248,11 @@ export default function ControlPage() {
   const geminiInUse = plan.presenter === 'gemini' || plan.audience === 'gemini';
   const shapes = s.annotations[s.slideIndex] ?? [];
 
-  // Слайды показываем на языке зала: их читает он. Язык чтения ленты сюда
-  // не вмешивается — им листают лог, а слайд остаётся тем, что видит зал.
-  // Если версии на этом языке нет, берём основную; номер слайда общий.
-  const deckLang = captionLangOf(s.profile);
+  // Слайды переключаются вместе с языком чтения: это одно движение —
+  // «покажи мне всё вот на этом языке». Субтитр сюда не входит, он всегда
+  // обращён к другой стороне. Если версии на этом языке нет, берём
+  // основную; номер слайда общий, поэтому место в докладе не сбивается.
+  const deckLang = shownLang(s);
   const shown = primary ? (variants[deckLang] ?? variants[primary]) : undefined;
 
   // Колонка во всю высоту, а полоса субтитров — только под слайдом: во всю
