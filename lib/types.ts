@@ -130,8 +130,8 @@ export type PresentationState = {
   shapeKind: ShapeKind;
   shapeColor: string;
   status: ChannelStatus;
-  /** Текущая строка субтитров, уже на captionLang. */
-  captionLine: { text: string; final: boolean; speaker: Speaker } | null;
+  /** Текущая строка субтитров, уже на языке показа, вместе с оригиналом. */
+  captionLine: { text: string; final: boolean; speaker: Speaker; orig?: string } | null;
   /**
    * История субтитров для боковой колонки — ТОЛЬКО на captionLang.
    * Приватный лог сюда не попадает никогда: ни оригиналов, ни второго

@@ -24,7 +24,7 @@ import { PALETTE, nextShapeKind } from './shapes';
 import * as storage from './storage';
 
 
-export type CaptionLine = { text: string; final: boolean; speaker: Speaker; at: number };
+export type CaptionLine = { text: string; final: boolean; speaker: Speaker; orig: string; at: number };
 
 /**
  * Язык, на котором сейчас читают: выбор зрителя, иначе язык аудитории из
@@ -288,7 +288,7 @@ export const useStore = create<State>((set, get) => ({
     if (allowed && captionText) {
       // Реплика зала старше 15 секунд уже неактуальна и только собьёт зал (§9).
       const stale = speaker === 'audience' && u.durationMs !== undefined && performance.now() - u.offsetMs > CAPTIONS.MAX_AUDIENCE_AGE_MS;
-      if (!stale) line = { text: captionText, final: true, speaker, at: performance.now() };
+      if (!stale) line = { text: captionText, final: true, speaker, orig: u.origText === captionText ? '' : u.origText, at: performance.now() };
     }
 
     set({ entries: next, captionLine: line, partial: null });
@@ -320,7 +320,7 @@ export const useStore = create<State>((set, get) => ({
       const e = next[i];
       const allowed =
         e.speaker === 'presenter' || (get().captions.showAudience && e.origLang !== lang);
-      if (allowed) line = { text: value, final: e.isFinal, speaker: e.speaker, at: performance.now() };
+      if (allowed) line = { text: value, final: e.isFinal, speaker: e.speaker, orig: e.origText === value ? '' : e.origText, at: performance.now() };
     }
 
     set({ entries: next, captionLine: line });
@@ -380,7 +380,7 @@ export const useStore = create<State>((set, get) => ({
     const finals = get().entries.filter((e) => e.isFinal);
     const last = finals[finals.length - 1];
     if (last?.texts[lang]) {
-      set({ captionLine: { text: last.texts[lang], final: true, speaker: last.speaker, at: performance.now() } });
+      set({ captionLine: { text: last.texts[lang], final: true, speaker: last.speaker, orig: last.origText === last.texts[lang] ? '' : last.origText, at: performance.now() } });
     }
 
     const missing = get().entries.filter((e) => e.isFinal && !e.texts[lang]);
@@ -469,7 +469,7 @@ export const useStore = create<State>((set, get) => ({
       // какой именно канал сейчас слушает.
       status: s.presenterStatus === 'listening' || s.audienceStatus === 'listening' ? 'listening' : s.presenterStatus,
       captionLine: s.captionLine
-        ? { text: s.captionLine.text, final: s.captionLine.final, speaker: s.captionLine.speaker }
+        ? { text: s.captionLine.text, final: s.captionLine.final, speaker: s.captionLine.speaker, orig: s.captionLine.orig }
         : null,
       captionHistory: history,
     };

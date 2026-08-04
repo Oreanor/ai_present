@@ -30,8 +30,15 @@ import type { CaptionSettings, Speaker } from '@/lib/types';
  */
 
 
-type Line = { text: string; final: boolean; speaker: Speaker };
-type Card = { text: string; speaker: Speaker; key: string };
+type Line = {
+  text: string;
+  final: boolean;
+  speaker: Speaker;
+  /** Распознанное как есть. Показывается мелко над переводом — по нему и
+   *  ведущий, и зал видят, верно ли расслышана фраза. */
+  orig?: string;
+};
+type Card = { text: string; speaker: Speaker; orig?: string; key: string };
 
 /**
  * Режет фразу на карточки субтитрового размера. Приоритет разрыва:
@@ -101,7 +108,7 @@ export function CaptionBand({
     lastFinalId.current = id;
 
     queue.current.push(
-      ...splitForSubtitles(line.text).map((text, i) => ({ text, speaker: line.speaker, key: `${id}#${i}` })),
+      ...splitForSubtitles(line.text).map((text, i) => ({ text, speaker: line.speaker, orig: line.orig, key: `${id}#${i}` })),
     );
     pump();
   }, [line]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -176,22 +183,38 @@ export function CaptionBand({
       className="pointer-events-none absolute inset-x-0 bottom-0 flex items-center justify-center"
       style={{ height, background: settings.background }}
     >
-      <div
-        key={card.key}
-        className="max-w-[88%] text-center"
-        style={{
-          // Реплики зала оформлены иначе: зритель должен с одного взгляда
-          // понимать, переводят ему докладчика или коллегу из зала (§9).
-          color: fromAudience ? '#cfe3ff' : settings.color,
-          fontSize: settings.fontSize,
-          lineHeight: 1.24,
-          fontWeight: 600,
-          textShadow: '0 2px 14px rgba(0,0,0,0.9)',
-          textWrap: 'balance',
-        }}
-      >
-        {fromAudience ? <span style={{ opacity: 0.7, marginRight: '0.4em' }}>❝</span> : null}
-        {card.text}
+      <div key={card.key} className="flex max-w-[88%] flex-col items-center gap-1">
+        {/* Оригинал прописными и мелко: он не спорит с переводом за
+            внимание, потому что читается как метка, а не как текст. */}
+        {card.orig ? (
+          <div
+            className="max-w-full truncate uppercase"
+            style={{
+              fontSize: Math.round(settings.fontSize * 0.34),
+              letterSpacing: '.06em',
+              color: '#ffffff',
+              opacity: 0.55,
+              textShadow: '0 2px 10px rgba(0,0,0,0.9)',
+            }}
+          >
+            {card.orig}
+          </div>
+        ) : null}
+        <div
+          className="text-center"
+          style={{
+            // Реплики зала жёлтые: зритель должен с одного взгляда понимать,
+            // переводят ему докладчика или коллегу из зала (§9).
+            color: fromAudience ? 'var(--warn, #e3b341)' : settings.color,
+            fontSize: settings.fontSize,
+            lineHeight: 1.24,
+            fontWeight: 600,
+            textShadow: '0 2px 14px rgba(0,0,0,0.9)',
+            textWrap: 'balance',
+          }}
+        >
+          {card.text}
+        </div>
       </div>
     </div>
   );
