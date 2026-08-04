@@ -73,7 +73,7 @@ export async function openDeck(file: File): Promise<Deck> {
 export class PageRenderer {
   private cache = new Map<number, HTMLCanvasElement>();
   private pages = new Map<number, PDFPageProxy>();
-  private inflight = new Map<number, Promise<HTMLCanvasElement>>();
+  private inflight = new Map<number, { width: number; job: Promise<HTMLCanvasElement> }>();
   private order: number[] = [];
 
   constructor(
@@ -82,41 +82,68 @@ export class PageRenderer {
   ) {}
 
   async render(index: number, cssWidth: number, dpr: number): Promise<HTMLCanvasElement> {
-    const key = index;
-    const cached = this.cache.get(key);
-    if (cached && cached.width === Math.round(cssWidth * dpr)) {
-      this.touch(key);
+    const want = Math.round(cssWidth * dpr);
+
+    const cached = this.cache.get(index);
+    if (cached && cached.width === want) {
+      this.touch(index);
       return cached;
     }
-    const running = this.inflight.get(key);
-    if (running) return running;
 
-    const job = (async () => {
-      const page = this.pages.get(index) ?? (await this.deck.doc.getPage(index + 1));
-      this.pages.set(index, page);
+    // Незавершённый рендер годится, ТОЛЬКО если он той же ширины.
+    // Иначе полноразмерный запрос получал бы миниатюру из галереи,
+    // растянутую во весь экран, — и она висела бы мутной до тех пор,
+    // пока перелистывание не заставит перерисовать.
+    const running = this.inflight.get(index);
+    if (running && running.width === want) return running.job;
 
+    const job = this.draw(index, want);
+    this.inflight.set(index, { width: want, job });
+    try {
+      return await job;
+    } finally {
+      if (this.inflight.get(index)?.job === job) this.inflight.delete(index);
+    }
+  }
+
+  private async draw(index: number, pxWidth: number): Promise<HTMLCanvasElement> {
+    const page = this.pages.get(index) ?? (await this.deck.doc.getPage(index + 1));
+    this.pages.set(index, page);
+
+    const base = page.getViewport({ scale: 1 });
+    const viewport = page.getViewport({ scale: pxWidth / base.width });
+
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(viewport.width);
+    canvas.height = Math.round(viewport.height);
+    const ctx = canvas.getContext('2d', { alpha: false });
+    if (!ctx) throw new Error('2d context unavailable');
+    await page.render({ canvasContext: ctx, viewport }).promise;
+
+    this.cache.set(index, canvas);
+    this.touch(index);
+    this.evict();
+    return canvas;
+  }
+
+  /**
+   * Миниатюра для галереи. Мимо кэша: иначе она вытесняет полноразмерный
+   * слайд и подсовывается ему же, пока тот ещё не отрисован.
+   */
+  async thumbnail(pxWidth: number): Promise<string> {
+    const page = await this.deck.doc.getPage(1);
+    try {
       const base = page.getViewport({ scale: 1 });
-      const scale = (cssWidth * dpr) / base.width;
-      const viewport = page.getViewport({ scale });
-
+      const viewport = page.getViewport({ scale: pxWidth / base.width });
       const canvas = document.createElement('canvas');
       canvas.width = Math.round(viewport.width);
       canvas.height = Math.round(viewport.height);
       const ctx = canvas.getContext('2d', { alpha: false });
       if (!ctx) throw new Error('2d context unavailable');
       await page.render({ canvasContext: ctx, viewport }).promise;
-
-      this.cache.set(key, canvas);
-      this.touch(key);
-      this.evict();
-      return canvas;
-    })();
-
-    this.inflight.set(key, job);
-    try {
-      return await job;
+      return canvas.toDataURL('image/jpeg', 0.7);
     } finally {
-      this.inflight.delete(key);
+      page.cleanup();
     }
   }
 

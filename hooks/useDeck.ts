@@ -46,7 +46,7 @@ export function useDeck() {
 
         // Превью для галереи делаем сразу: рисовать его при каждом показе
         // списка значит грузить pdf.js ради миниатюр.
-        const thumb = (await r.render(0, 320, 1)).toDataURL('image/jpeg', 0.7);
+        const thumb = await r.thumbnail(320);
         await saveDeckFile(id, file, { pages: d.pageCount, thumb });
         getBus().send({ type: 'deck:changed', payload: { docId: id } });
         refreshRecent();
