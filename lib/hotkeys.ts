@@ -1,33 +1,20 @@
 // Горячие клавиши (§13). Комбинации с Ctrl не используем: они конфликтуют
 // с шорткатами Chrome, а часть страница не может перехватить вовсе.
 
-export type Command =
-  | 'next'
-  | 'prev'
-  | 'first'
-  | 'last'
-  | 'mode'
-  | 'captions'
-  | 'lang'
-  | 'gemini'
-  | 'flag'
-  | 'export'
-  | 'fullscreen'
-  | 'shapeKind'
-  | 'clearSlide'
-  | 'clearAll';
+export type Command = 'next' | 'prev' | 'first' | 'last' | 'shapeKind' | 'clearSlide' | 'clearAll';
 
+/**
+ * Список намеренно короткий. Буквенных сокращений было ещё восемь — на
+ * старт, язык микрофона, движок, экспорт, метку, полноэкранный режим.
+ * Их никто не запоминает: у всего этого есть кнопка на виду, а клавиша
+ * рядом с ней только требует помнить лишнее. Осталось то, что и так
+ * знают: листание (его же шлёт презентационный пульт) и две клавиши
+ * разметки, которые нажимают с рукой на мыши.
+ */
 export const HOTKEY_HELP: { keys: string; label: string }[] = [
   { keys: '→ / Space / PgDn', label: 'Next slide' },
   { keys: '← / PgUp', label: 'Previous slide' },
   { keys: 'Home / End', label: 'First / last slide' },
-  { keys: 'M', label: 'Start / stop listening' },
-  { keys: 'H', label: 'Show / hide captions' },
-  { keys: 'L', label: 'Microphone language' },
-  { keys: 'G', label: 'Switch mic to Gemini and back' },
-  { keys: 'B', label: 'Flag last log entry' },
-  { keys: 'E', label: 'Export transcripts' },
-  { keys: 'F', label: 'Fullscreen presentation' },
   { keys: 'Tab', label: 'Annotation shape' },
   { keys: 'Q', label: 'Clear annotations on slide' },
   { keys: 'Shift+Q', label: 'Clear all annotations' },
@@ -61,28 +48,8 @@ export function resolve(e: KeyboardEvent): Command | null {
       return 'shapeKind';
   }
 
-  const k = e.key.toLowerCase();
-  if (k === 'q') return e.shiftKey ? 'clearAll' : 'clearSlide';
-  if (e.shiftKey) return null;
-
-  switch (k) {
-    case 'm':
-      return 'mode';
-    case 'h':
-      return 'captions';
-    case 'l':
-      return 'lang';
-    case 'g':
-      return 'gemini';
-    case 'b':
-      return 'flag';
-    case 'e':
-      return 'export';
-    case 'f':
-      return 'fullscreen';
-    default:
-      return null;
-  }
+  if (e.key.toLowerCase() === 'q') return e.shiftKey ? 'clearAll' : 'clearSlide';
+  return null;
 }
 
 export function attachHotkeys(handler: (c: Command) => void): () => void {

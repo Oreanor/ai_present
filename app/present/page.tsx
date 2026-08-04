@@ -87,7 +87,6 @@ export default function PresentPage() {
       else if (c === 'prev') bus.current.send({ type: 'nav', payload: { delta: -1 } });
       else if (c === 'first') bus.current.send({ type: 'nav', payload: { to: 0 } });
       else if (c === 'last') bus.current.send({ type: 'nav', payload: { to: 1e9 } });
-      else if (c === 'fullscreen') void toggleFullscreen();
       else bus.current.send({ type: 'cmd', payload: { name: c } });
     });
   }, []);
@@ -230,11 +229,3 @@ function DropDeck({ onFile, waiting }: { onFile: (f: File) => void; waiting: boo
   );
 }
 
-async function toggleFullscreen(): Promise<void> {
-  try {
-    if (document.fullscreenElement) await document.exitFullscreen();
-    else await document.documentElement.requestFullscreen();
-  } catch {
-    /* пользователь отказал — не наша забота */
-  }
-}

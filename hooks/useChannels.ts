@@ -126,18 +126,6 @@ export function useChannels(terms: RefObject<string[]>) {
     [start],
   );
 
-  /** Клавиша G — аварийно перекинуть микрофон на другой движок. */
-  const swapPresenter = useCallback(async () => {
-    const current = providers.current.presenter?.id as ProviderId | undefined;
-    if (!current) {
-      useStore.getState().toast_('Microphone is not running.', 'warn');
-      return null;
-    }
-    const next: ProviderId = current === 'free' ? 'gemini' : 'free';
-    await start('presenter', next);
-    return next;
-  }, [start]);
-
   useEffect(() => {
     const live = providers.current;
     return () => {
@@ -147,5 +135,5 @@ export function useChannels(terms: RefObject<string[]>) {
     };
   }, []);
 
-  return { listening, start, stop, startAll, stopAll, applyMode, swapPresenter };
+  return { listening, start, stop, startAll, stopAll, applyMode };
 }

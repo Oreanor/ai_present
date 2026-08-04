@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { download, flaggedMarkdown, fullMarkdown } from '@/lib/export';
+import { download, exportAll, flaggedMarkdown, fullMarkdown } from '@/lib/export';
 import { requiredPairs, transcriptLangs } from '@/lib/profile';
 import { getTranslator, pairAvailability } from '@/lib/speech/translator';
 import { useStore } from '@/lib/store';
@@ -82,6 +82,9 @@ export function ControlMenu({
             onClick={() => download('follow-up.md', flaggedMarkdown(state.entries, transcriptLangs(state.profile)[0]))}
           >
             {t('flaggedOnly')}
+          </button>
+          <button className="menu-item" onClick={() => exportAll(state.entries, state.profile)}>
+            {t('perLanguage')}
           </button>
         </Group>
 

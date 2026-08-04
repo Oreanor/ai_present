@@ -50,6 +50,9 @@ export function ChatLog() {
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
+      <div className="shrink-0 border-b border-line px-3 py-1 text-[10px] uppercase tracking-wide text-dim">
+        {t('sectionLog')}
+      </div>
       <div
         ref={boxRef}
         onScroll={() => {

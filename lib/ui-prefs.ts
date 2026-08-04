@@ -101,7 +101,8 @@ const DICT = {
   me: { en: 'me', pt: 'eu' },
   room: { en: 'room', pt: 'sala' },
   readIn: { en: 'Read in', pt: 'Ler em' },
-  captionsHidden: { en: 'Captions HIDDEN', pt: 'Legendas OCULTAS' },
+  sectionSubtitles: { en: 'Subtitles', pt: 'Legendas' },
+  sectionLog: { en: 'Log', pt: 'Registo' },
   dropPdf: { en: 'Drop your PDF here', pt: 'Solte o seu PDF aqui' },
   orClick: { en: 'or click to choose', pt: 'ou clique para escolher' },
   nothingYet: { en: 'Nothing said yet.', pt: 'Ainda nada foi dito.' },
@@ -113,6 +114,7 @@ const DICT = {
   interfaceLanguage: { en: 'Interface language', pt: 'Idioma da interface' },
   fullLog: { en: 'Full log with originals', pt: 'Registo completo com originais' },
   flaggedOnly: { en: 'Flagged items only', pt: 'Apenas itens marcados' },
+  perLanguage: { en: 'Transcripts, one file per language', pt: 'Transcrições, um ficheiro por idioma' },
   session: { en: 'Session', pt: 'Sessão' },
   clearLog: { en: 'Clear the log', pt: 'Limpar o registo' },
   clearLogConfirm: {
@@ -237,7 +239,6 @@ const DICT = {
   },
   channelNowIs: { en: 'now set to', pt: 'agora definido para' },
   hintElapsed: { en: 'Time since this window was opened', pt: 'Tempo desde que esta janela foi aberta' },
-  hintCaptionsBack: { en: 'Press H to bring them back', pt: 'Prima H para as trazer de volta' },
   hintPrevSlide: { en: 'Previous slide (←)', pt: 'Diapositivo anterior (←)' },
   hintNextSlide: { en: 'Next slide (→)', pt: 'Diapositivo seguinte (→)' },
   hintKeptIn: { en: 'Kept in this language — switches instantly', pt: 'Guardado neste idioma — muda instantaneamente' },
@@ -252,7 +253,6 @@ const DICT = {
   connectedToControl: { en: 'Connected to Control.', pt: 'Ligado ao Control.' },
 
   // --- сообщения действий ---
-  micEngine: { en: 'Microphone engine', pt: 'Motor do microfone' },
   clearAllShapesConfirm: {
     en: 'Erase annotations on every slide?',
     pt: 'Apagar as anotações de todos os diapositivos?',

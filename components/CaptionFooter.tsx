@@ -46,6 +46,9 @@ export function CaptionFooter() {
       style={{ height: LAYOUT.BAND_PX }}
     >
       <div className="flex max-w-[90%] items-center gap-2 text-[13px] text-dim">
+        {/* Подпись нужна залу: без неё крупная строка внизу и лента справа
+            выглядят двумя лентами одного и того же. */}
+        <span className="text-[10px] uppercase tracking-wide opacity-60">{t('sectionSubtitles')}</span>
         <StatusDot status={last?.speaker === 'audience' ? audienceStatus : presenterStatus} />
         <span className="truncate">{partial ?? heard ?? ''}</span>
       </div>

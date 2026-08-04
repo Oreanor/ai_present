@@ -18,7 +18,6 @@ import { useDeck } from '@/hooks/useDeck';
 import { useElementSize } from '@/hooks/useElementSize';
 import { getBus, type BusMessage } from '@/lib/bus';
 import { LAYOUT } from '@/lib/constants';
-import { exportAll } from '@/lib/export';
 import { clock, usd } from '@/lib/format';
 import type { Rect } from '@/lib/geometry';
 import { attachHotkeys, type Command } from '@/lib/hotkeys';
@@ -166,17 +165,6 @@ export default function ControlPage() {
         case 'prev': st.move(-1); break;
         case 'first': st.goto(0); break;
         case 'last': st.goto(st.slideCount - 1); break;
-        case 'mode': void (channels.listening ? channels.stopAll() : channels.startAll()); break;
-        case 'captions': st.setCaptions({ visible: !st.captions.visible }); break;
-        case 'lang': cycleChannel('presenter'); break;
-        case 'gemini':
-          void channels.swapPresenter().then((next) => {
-            if (next) st.toast_(`${t('micEngine')}: ${next}`);
-          });
-          break;
-        case 'flag': st.flagLast(); break;
-        case 'export': exportAll(st.entries, st.profile); break;
-        case 'fullscreen': void document.documentElement.requestFullscreen().catch(() => {}); break;
         case 'shapeKind': st.cycleShapeKind(); break;
         case 'clearSlide': st.clearShapes(false); break;
         case 'clearAll':
@@ -184,7 +172,7 @@ export default function ControlPage() {
           break;
       }
     },
-    [channels, cycleChannel, t],
+    [t],
   );
 
   useEffect(() => attachHotkeys(runCommand), [runCommand]);
@@ -325,13 +313,7 @@ export default function ControlPage() {
                 Разными строками они занимали высоту дважды, а связаны не
                 были — это просто всё, чем управляют не голосом. */}
             <div className="mt-1 flex items-center gap-2">
-              {s.captions.visible ? (
-                <ReadInPicker />
-              ) : (
-                <button onClick={() => runCommand('captions')} className="btn btn-alarm" title={t('hintCaptionsBack')}>
-                  {t('captionsHidden')}
-                </button>
-              )}
+              <ReadInPicker />
 
               <span className="ml-auto flex items-center gap-2 font-mono text-[11px] text-dim">
                 <span title={t('hintElapsed')}>{clock(elapsed)}</span>

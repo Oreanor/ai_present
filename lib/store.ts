@@ -86,7 +86,6 @@ type State = {
   applyTranslation(id: string, lang: Lang, text: string): void;
   editEntry(id: string, lang: Lang | 'orig', text: string): void;
   toggleFlag(id: string): void;
-  flagLast(): void;
   clearLog(): void;
   restoreLog(): Promise<void>;
   setViewLang(lang: Lang): Promise<void>;
