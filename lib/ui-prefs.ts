@@ -101,6 +101,7 @@ const DICT = {
   me: { en: 'me', pt: 'eu' },
   room: { en: 'room', pt: 'sala' },
   readIn: { en: 'Read in', pt: 'Ler em' },
+  sectionControl: { en: 'Control', pt: 'Controlo' },
   sectionSubtitles: { en: 'Subtitles', pt: 'Legendas' },
   sectionLog: { en: 'Log', pt: 'Registo' },
   dropPdf: { en: 'Drop your PDF here', pt: 'Solte o seu PDF aqui' },
@@ -126,6 +127,11 @@ const DICT = {
   packs: { en: 'Translation packs — one click each', pt: 'Pacotes de tradução — um clique cada' },
   download: { en: 'Download', pt: 'Descarregar' },
   requestsUsed: { en: 'Gemini requests used', pt: 'Pedidos Gemini usados' },
+  enterFullscreen: {
+    en: 'Slide full screen — subtitles appear over it and fade away',
+    pt: 'Diapositivo em ecrã inteiro — as legendas surgem por cima e desaparecem',
+  },
+  exitFullscreen: { en: 'Leave full screen', pt: 'Sair do ecrã inteiro' },
   menuHint: { en: 'Everything you do not need mid-talk', pt: 'Tudo o que não precisa durante a apresentação' },
 
   // --- мастер настройки ---

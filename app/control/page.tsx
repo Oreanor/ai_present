@@ -12,6 +12,7 @@ import { StatusDot } from '@/components/StatusDot';
 import { DeckGallery } from '@/components/DeckGallery';
 import { EdgeNav } from '@/components/EdgeNav';
 import { SlideCanvas } from '@/components/SlideCanvas';
+import { SlideCaptions } from '@/components/SlideCaptions';
 import { KEY_TIERS, SetupWizard } from '@/components/SetupWizard';
 import { useChannels } from '@/hooks/useChannels';
 import { useDeck } from '@/hooks/useDeck';
@@ -40,6 +41,13 @@ import { initUiPrefs, useT, useTheme, useUiLang } from '@/lib/ui-prefs';
  * пользуются раз за встречу. Управление — в правой колонке, всё лишнее
  * под «⋯».
  */
+/** Значок и подпись полноэкранного режима — данными, а не тернарником
+ *  прямо в разметке: значок это такая же подпись, только рисунком. */
+const FULLSCREEN = {
+  off: { glyph: '⛶', label: 'enterFullscreen' },
+  on: { glyph: '⇱', label: 'exitFullscreen' },
+} as const;
+
 export default function ControlPage() {
   // Подписка поимённая, а не на весь стор: реплики и промежуточный текст
   // меняются по нескольку раз в секунду, и подписка на всё перерисовывала
@@ -79,6 +87,7 @@ export default function ControlPage() {
   // Есть ли ключ — от этого зависит, предлагать ли AUTO. Читается один раз
   // и после мастера: в разметке дёргать хранилище на каждый кадр незачем.
   const [hasKey, setHasKey] = useState(false);
+  const [full, setFull] = useState(false);
 
   const bus = useRef(getBus());
   const stageRef = useRef<HTMLDivElement>(null);
@@ -123,6 +132,20 @@ export default function ControlPage() {
   useEffect(() => {
     const id = setInterval(() => setElapsed((v) => v + 1), 1000);
     return () => clearInterval(id);
+  }, []);
+
+  // Полноэкранный режим отслеживаем событием, а не своим флагом: выйти из
+  // него можно и Escape, и кнопкой браузера, и наш флаг разошёлся бы с
+  // действительностью.
+  useEffect(() => {
+    const sync = () => setFull(document.fullscreenElement === stageRef.current);
+    document.addEventListener('fullscreenchange', sync);
+    return () => document.removeEventListener('fullscreenchange', sync);
+  }, []);
+
+  const toggleFull = useCallback(() => {
+    if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
+    else void stageRef.current?.requestFullscreen().catch(() => {});
   }, []);
 
   /**
@@ -254,6 +277,17 @@ export default function ControlPage() {
                 onUndo={s.undoShape}
               />
               <AnnotationTools />
+              {/* Во весь экран растянут только слайд, нижней полосы там
+                  нет — субтитры ложатся поверх него и гаснут сами. */}
+              {full ? <SlideCaptions rect={rect} /> : null}
+              <button
+                onClick={toggleFull}
+                title={t(FULLSCREEN[full ? 'on' : 'off'].label)}
+                style={{ right: LAYOUT.EDGE_NAV_PX + 8 }}
+                className="absolute bottom-2 rounded-lg bg-black/70 px-2 py-1 text-[15px] leading-none text-white/80 opacity-0 transition-opacity duration-150 hover:opacity-100 focus:opacity-100 group-hover/stage:opacity-70"
+              >
+                {FULLSCREEN[full ? 'on' : 'off'].glyph}
+              </button>
               <EdgeNav side="left" onClick={() => s.move(-1)} disabled={s.slideIndex === 0} />
               <EdgeNav side="right" onClick={() => s.move(1)} disabled={s.slideIndex >= s.slideCount - 1} />
               <div className="pointer-events-none absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full bg-black/60 px-2.5 py-0.5 font-mono text-[11px] text-white/60">
@@ -281,6 +315,7 @@ export default function ControlPage() {
               одной кнопке — это один вопрос, а разнесённые точка и кнопка
               заставляли связывать их глазами. */}
           <div className="toolbar">
+            <div className="pb-1.5 text-[10px] uppercase tracking-wide text-dim">{t('sectionControl')}</div>
             <div className="flex gap-1">
               <button
                 onClick={() => void (channels.listening ? channels.stopAll() : channels.startAll())}
