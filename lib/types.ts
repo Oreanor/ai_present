@@ -12,6 +12,14 @@ export const LANG_NAMES: Record<Lang, string> = {
   ru: 'Русский',
 };
 
+/** Образец для настройки размера субтитра. На языке зала: подбирают его
+ *  под то, что зал будет читать, а не под свой язык. */
+export const SAMPLE_SUBTITLE: Record<Lang, string> = {
+  en: 'Subtitle example',
+  pt: 'Exemplo de legenda',
+  ru: 'Пример субтитра',
+};
+
 /** Как определяется язык на канале. Выбор пользователя, не разработчика. */
 export type LangMode =
   | { kind: 'auto' }
@@ -114,7 +122,7 @@ export type CaptionSettings = {
 
 export const DEFAULT_CAPTIONS: CaptionSettings = {
   layout: 'reserve',
-  fontSize: 40,
+  fontSize: 34,
   bandHeight: 22,
   color: '#ffffff',
   background: 'rgb(0 0 0 / 0.62)',

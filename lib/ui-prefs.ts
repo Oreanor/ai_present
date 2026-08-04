@@ -103,6 +103,8 @@ const DICT = {
   readIn: { en: 'Read in', pt: 'Ler em' },
   hasOwnSlides: { en: 'has its own slides', pt: 'tem diapositivos próprios' },
   sectionControl: { en: 'Control', pt: 'Controlo' },
+  smaller: { en: 'Smaller subtitle', pt: 'Legenda mais pequena' },
+  bigger: { en: 'Bigger subtitle', pt: 'Legenda maior' },
   sectionSubtitles: { en: 'Subtitles', pt: 'Legendas' },
   sectionLog: { en: 'Log', pt: 'Registo' },
   dropPdf: { en: 'Drop your PDF here', pt: 'Solte o seu PDF aqui' },
