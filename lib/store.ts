@@ -26,6 +26,15 @@ import * as storage from './storage';
 
 export type CaptionLine = { text: string; final: boolean; speaker: Speaker; at: number };
 
+/**
+ * Язык, на котором сейчас читают: выбор зрителя, иначе язык аудитории из
+ * профиля. Полоса субтитров и лента обязаны брать его из одного места —
+ * зал видит их рядом, в одном окне.
+ */
+export function shownLang(s: { viewLang: Lang | null; profile: MeetingProfile }): Lang {
+  return s.viewLang ?? s.profile.captionLang;
+}
+
 type State = {
   profile: MeetingProfile;
   captions: CaptionSettings;
@@ -252,11 +261,15 @@ export const useStore = create<State>((set, get) => ({
       next = [...entries, entry];
     }
 
-    // Полоса субтитров: всегда и только captionLang (§9).
-    const captionText = texts[profile.captionLang];
+    // Полоса субтитров идёт на языке чтения — том же, что и лента.
+    // Раньше это был жёстко язык из профиля, и переключатель над лентой
+    // менял её, а полосу оставлял на прежнем языке: два разных языка в
+    // одном окне, которое смотрит зал.
+    const view = shownLang(get());
+    const captionText = texts[view];
     let line = get().captionLine;
-    const audienceSaidCaptionLang = speaker === 'audience' && u.origLang === profile.captionLang;
-    const allowed = speaker === 'presenter' || (captions.showAudience && !audienceSaidCaptionLang);
+    const audienceSaidViewLang = speaker === 'audience' && u.origLang === view;
+    const allowed = speaker === 'presenter' || (captions.showAudience && !audienceSaidViewLang);
 
     if (allowed && captionText) {
       // Реплика зала старше 15 секунд уже неактуальна и только собьёт зал (§9).
@@ -266,10 +279,19 @@ export const useStore = create<State>((set, get) => ({
 
     set({ entries: next, captionLine: line, partial: null });
     void storage.persistEntries([entry]);
+
+    // Язык чтения может не входить в стенограммы — тогда провайдер на него
+    // не переводит. Догоняем на устройстве: иначе выбранный зрителем язык
+    // работал бы только для того, что уже сказано.
+    if (!texts[view] && u.origLang !== view) {
+      void translate(u.origText, u.origLang, view)
+        .then((out) => get().applyTranslation(u.id, view, out))
+        .catch(() => {});
+    }
   },
 
   applyTranslation(id, lang, text) {
-    const { entries, profile, glossary } = get();
+    const { entries, glossary } = get();
     const i = entries.findIndex((e) => e.id === id);
     if (i < 0) return;
     if (entries[i].edited) return;
@@ -280,10 +302,10 @@ export const useStore = create<State>((set, get) => ({
 
     // Догоняющий перевод дорисовывает полосу, если ждали именно его.
     let line = get().captionLine;
-    if (lang === profile.captionLang) {
+    if (lang === shownLang(get())) {
       const e = next[i];
       const allowed =
-        e.speaker === 'presenter' || (get().captions.showAudience && e.origLang !== profile.captionLang);
+        e.speaker === 'presenter' || (get().captions.showAudience && e.origLang !== lang);
       if (allowed) line = { text: value, final: e.isFinal, speaker: e.speaker, at: performance.now() };
     }
 
@@ -337,6 +359,15 @@ export const useStore = create<State>((set, get) => ({
    */
   async setViewLang(lang) {
     set({ viewLang: lang });
+
+    // Полоса перескакивает на новый язык сразу, не дожидаясь следующей
+    // реплики: переключатель стоит прямо над лентой, и рассинхрон между
+    // ними виден в том же окне.
+    const finals = get().entries.filter((e) => e.isFinal);
+    const last = finals[finals.length - 1];
+    if (last?.texts[lang]) {
+      set({ captionLine: { text: last.texts[lang], final: true, speaker: last.speaker, at: performance.now() } });
+    }
 
     const missing = get().entries.filter((e) => e.isFinal && !e.texts[lang]);
     if (!missing.length) return;
@@ -398,7 +429,7 @@ export const useStore = create<State>((set, get) => ({
 
   snapshot() {
     const s = get();
-    const cl = s.profile.captionLang;
+    const cl = shownLang(s);
 
     // История для боковой колонки. Собирается ровно по тем же правилам,
     // что и полоса (§9): только captionLang, реплики зала на этом же

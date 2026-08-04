@@ -22,7 +22,7 @@ import { modeCycle, modeLabel } from '@/lib/profile';
 import { planChannels } from '@/lib/speech/registry';
 import { quota } from '@/lib/speech/gemini-provider';
 import { loadCap, loadProfile, loadTier } from '@/lib/storage';
-import { hydrateStore, useStore } from '@/lib/store';
+import { hydrateStore, shownLang, useStore } from '@/lib/store';
 import { LANG_NAMES, type Lang, type LangMode, type Speaker } from '@/lib/types';
 import { uid } from '@/lib/speech/types';
 import { initUiPrefs, useT, useTheme, useUiLang } from '@/lib/ui-prefs';
@@ -203,12 +203,13 @@ export default function ControlPage() {
   // Крупная строка внизу: во время Q&A это вопрос на языке ведущего,
   // иначе — то, что прямо сейчас читает зал. После перезагрузки живой
   // строки нет, поэтому падаем на последнюю запись восстановленного лога.
+  const view = shownLang(s);
   const finals = s.entries.filter((e) => e.isFinal);
   const last = finals[finals.length - 1];
   const roomAsked = last?.speaker === 'audience';
   const bigText = roomAsked
     ? last.texts[s.profile.transcriptLangs[0]]
-    : (s.captionLine?.text ?? last?.texts[s.profile.captionLang]);
+    : (s.captionLine?.text ?? last?.texts[view]);
   const bigSub = bigText && last?.origText !== bigText ? last?.origText : null;
 
   return (
@@ -332,7 +333,7 @@ export default function ControlPage() {
       >
         <div className="flex items-center gap-2 text-[10px] uppercase tracking-wide text-dim">
           <StatusDot status={roomAsked ? s.audienceStatus : s.presenterStatus} />
-          <span>{roomAsked ? t('questionFromRoom') : `${t('onScreen')} — ${LANG_NAMES[s.profile.captionLang]}`}</span>
+          <span>{roomAsked ? t('questionFromRoom') : `${t('onScreen')} — ${LANG_NAMES[view]}`}</span>
           {s.partial ? <span className="max-w-[40ch] truncate italic text-accent/70">{s.partial}</span> : null}
         </div>
         <p className="line-clamp-2 text-center text-[34px] font-semibold leading-tight" style={{ textWrap: 'balance' }}>
