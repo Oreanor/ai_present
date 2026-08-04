@@ -9,6 +9,11 @@ import type { NextConfig } from 'next';
 const isStatic = process.env.STATIC_EXPORT === '1';
 
 const config: NextConfig = {
+  // Каталог сборки можно увести в сторону. Нужно затем, что `next build`
+  // и живой `next dev` пишут в один и тот же .next и затирают друг друга:
+  // проверочная сборка посреди работы роняла дев-сервер в 500 до полной
+  // перезагрузки. Умолчание оставлено прежним — Vercel ждёт именно .next.
+  distDir: process.env.BUILD_DIR || '.next',
   output: isStatic ? 'export' : undefined,
   // Относительные пути обязательны: статику открывают через file://,
   // где абсолютный /_next/... не разрешается.

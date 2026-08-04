@@ -5,10 +5,11 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "build:static": "cross-env STATIC_EXPORT=1 next build",
+    "build:static": "cross-env STATIC_EXPORT=1 BUILD_DIR=.next-static next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "postinstall": "node scripts/copy-pdf-worker.mjs"
+    "postinstall": "node scripts/copy-pdf-worker.mjs",
+    "build:check": "cross-env BUILD_DIR=.next-verify next build"
   },
   "dependencies": {
     "next": "^15.5.4",

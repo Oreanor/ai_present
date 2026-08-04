@@ -74,7 +74,7 @@ export function SlideCanvas({
   return (
     <div
       ref={hostRef}
-      className="absolute overflow-hidden bg-white"
+      className="slide-frame absolute overflow-hidden bg-white"
       style={{ left: rect.x, top: rect.y, width: rect.w, height: rect.h }}
     >
       {error ? <div className="p-4 text-sm text-err">{error}</div> : null}
