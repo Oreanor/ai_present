@@ -42,13 +42,16 @@ export function CaptionFooter() {
 
   return (
     <footer
-      className="flex shrink-0 flex-col items-center justify-center gap-1.5 border-t border-line bg-panel px-10 py-3"
+      className="relative flex shrink-0 flex-col items-center justify-center gap-1.5 border-t border-line bg-panel px-10 py-3"
       style={{ height: LAYOUT.BAND_PX }}
     >
+      {/* Подпись нужна залу: без неё крупная строка внизу и лента справа
+          выглядят двумя лентами одного и того же. Стоит в углу и тем же
+          набором, что заголовки в остальном окне. */}
+      <div className="absolute left-3 top-2 text-[10px] uppercase tracking-wide text-dim">
+        {t('sectionSubtitles')}
+      </div>
       <div className="flex max-w-[90%] items-center gap-2 text-[13px] text-dim">
-        {/* Подпись нужна залу: без неё крупная строка внизу и лента справа
-            выглядят двумя лентами одного и того же. */}
-        <span className="text-[10px] uppercase tracking-wide opacity-60">{t('sectionSubtitles')}</span>
         <StatusDot status={last?.speaker === 'audience' ? audienceStatus : presenterStatus} />
         <span className="truncate">{partial ?? heard ?? ''}</span>
       </div>

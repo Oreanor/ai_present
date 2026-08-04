@@ -103,7 +103,7 @@ export function DeckGallery({
                         {d.langs.map((l) => (
                           <span
                             key={l}
-                            className="rounded bg-black/65 px-1.5 py-0.5 font-mono text-[10px] uppercase leading-none text-white/85"
+                            className="rounded border border-white/25 bg-black/65 px-1.5 py-0.5 font-mono text-[10px] uppercase leading-none text-white/85"
                           >
                             {l}
                           </span>
