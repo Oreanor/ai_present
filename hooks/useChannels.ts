@@ -126,6 +126,11 @@ export function useChannels(terms: RefObject<string[]>) {
    *  отменили: своя речь важнее второго разрешения. */
   const startAll = useCallback(async () => {
     const plan = planChannels(useStore.getState().profile);
+    // Предупреждения плана считались и выбрасывались. Из-за этого канал,
+    // уехавший с Web Speech на Gemini (микрофон в AUTO), молчал без
+    // единого слова о причине: движок сменился, а сказать об этом было
+    // некому. Дальше по колоде это делает useDeck — здесь так же.
+    for (const w of plan.warnings) useStore.getState().toast_(w, 'warn');
     setListening(true);
     await start('presenter', plan.presenter);
     await start('audience', plan.audience);

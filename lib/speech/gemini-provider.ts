@@ -159,6 +159,10 @@ export class GeminiChunkProvider implements SpeechProvider {
   private pinned: Lang | null = null;
   private inflight = 0;
   private dayWarned = false;
+  /** Когда в последний раз жаловались на минутный лимит. Не одноразовый
+   *  флаг: пропадать могут десятки реплик подряд, и сказать об этом надо
+   *  снова, если ничего не изменилось. Но не на каждой — это был бы поток. */
+  private slotWarnedAt = 0;
   /** Какой канал обслуживаем — нужно арбитру слова. */
   private channel: Speaker = 'audience';
 
@@ -213,6 +217,21 @@ export class GeminiChunkProvider implements SpeechProvider {
     this.pinned = lang;
   }
 
+  /** Тариф ключа приложение угадать не может — API его не сообщает, и по
+   *  умолчанию стоит free. Оплаченный ключ с этой настройкой режется до
+   *  десяти запросов в минуту, поэтому в тексте прямо сказано, где чинить. */
+  private warnSlot(opts: StartOptions): void {
+    const now = performance.now();
+    if (now - this.slotWarnedAt < GEMINI.SLOT_WARN_EVERY_MS) return;
+    this.slotWarnedAt = now;
+    opts.onError(
+      new Error(
+        `Dropping speech: over ${quota.rpm} Gemini requests a minute, and both channels share that budget. ` +
+          'If this key is a paid one, set the tier in ⋯ → Languages and setup — it defaults to free (10/min).',
+      ),
+    );
+  }
+
   private async send(pcm: Float32Array, sampleRate: number, durationMs: number): Promise<void> {
     const opts = this.opts;
     if (!opts) return;
@@ -237,7 +256,14 @@ export class GeminiChunkProvider implements SpeechProvider {
     // Ждём не дольше половины минуты — позже реплика всё равно неактуальна.
     const wait = quota.waitMs();
     if (wait > 0) {
-      if (wait > GEMINI.MAX_WAIT_FOR_SLOT_MS || this.inflight >= 2) return;
+      if (wait > GEMINI.MAX_WAIT_FOR_SLOT_MS || this.inflight >= 2) {
+        // Реплика выбрасывается — и раньше это был голый return, без
+        // единого слова наружу. Выглядело как «распознавание молчит»:
+        // на free-тарифе десять запросов в минуту выгорают за секунды,
+        // а оба канала берут их из одной общей квоты.
+        this.warnSlot(opts);
+        return;
+      }
       await new Promise((r) => setTimeout(r, wait));
       if (!this.opts) return;
     }
