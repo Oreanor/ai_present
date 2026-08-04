@@ -104,8 +104,6 @@ const DICT = {
   captionsHidden: { en: 'Captions HIDDEN', pt: 'Legendas OCULTAS' },
   dropPdf: { en: 'Drop your PDF here', pt: 'Solte o seu PDF aqui' },
   orClick: { en: 'or click to choose', pt: 'ou clique para escolher' },
-  onScreen: { en: 'On screen', pt: 'No ecrã' },
-  questionFromRoom: { en: 'Question from the room', pt: 'Pergunta da sala' },
   nothingYet: { en: 'Nothing said yet.', pt: 'Ainda nada foi dito.' },
   nothingInLog: { en: 'Nothing said yet.', pt: 'Ainda nada foi dito.' },
   export: { en: 'Export', pt: 'Exportar' },

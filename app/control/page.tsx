@@ -210,7 +210,10 @@ export default function ControlPage() {
   const bigText = roomAsked
     ? last.texts[s.profile.transcriptLangs[0]]
     : (s.captionLine?.text ?? last?.texts[view]);
-  const bigSub = bigText && last?.origText !== bigText ? last?.origText : null;
+  // Мелкая верхняя строка — распознанное как есть. Показывать её рядом с
+  // тем же самым текстом незачем: когда говорили уже на языке показа,
+  // перевода нет и дублировать нечего.
+  const heard = last && last.origText !== bigText ? last.origText : null;
 
   return (
     <main className="flex h-dvh flex-col overflow-hidden">
@@ -331,15 +334,16 @@ export default function ControlPage() {
         className="flex shrink-0 flex-col items-center justify-center gap-1.5 border-t border-line bg-panel px-10 py-3"
         style={{ height: LAYOUT.BAND_PX }}
       >
-        <div className="flex items-center gap-2 text-[10px] uppercase tracking-wide text-dim">
+        {/* Сверху мелко — что распозналось как есть, снизу крупно — перевод
+            на выбранный язык. Подписи «на экране такой-то язык» здесь нет:
+            язык виден по самому тексту, а строка занимала место. */}
+        <div className="flex max-w-[90%] items-center gap-2 text-[13px] text-dim">
           <StatusDot status={roomAsked ? s.audienceStatus : s.presenterStatus} />
-          <span>{roomAsked ? t('questionFromRoom') : `${t('onScreen')} — ${LANG_NAMES[view]}`}</span>
-          {s.partial ? <span className="max-w-[40ch] truncate italic text-accent/70">{s.partial}</span> : null}
+          <span className="truncate">{s.partial ?? heard ?? ''}</span>
         </div>
         <p className="line-clamp-2 text-center text-[34px] font-semibold leading-tight" style={{ textWrap: 'balance' }}>
           {bigText ?? <span className="text-[16px] font-normal text-dim">{t('nothingYet')}</span>}
         </p>
-        {bigSub ? <p className="max-w-[90%] truncate text-center text-[13px] text-dim">{bigSub}</p> : null}
       </footer>
     </main>
   );
