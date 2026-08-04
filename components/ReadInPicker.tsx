@@ -31,9 +31,9 @@ export function ReadInPicker() {
 
   const kept = transcriptLangs(profile);
   const shown = shownLang({ viewLang, profile });
-  // Точка означает, что у этого языка есть своя версия слайдов. Без неё
-  // переключение меняет только текст, а слайд остаётся основным — и
-  // понять, почему он не сменился, было неоткуда.
+  // Своя версия слайдов есть не у каждого языка. Значка для этого нет:
+  // когда версии есть у всех, он стоял бы на всех кнопках и не различал
+  // бы ничего. Остаётся подсказка — её читают, когда слайд не сменился.
   const ownSlides = (l: Lang) => deckLangs.length > 1 && deckLangs.includes(l);
 
   return (
@@ -48,7 +48,6 @@ export function ReadInPicker() {
           title={`${kept.includes(l) ? t('hintKeptIn') : t('hintTranslateAll')}${ownSlides(l) ? ` · ${t('hasOwnSlides')}` : ''}`}
         >
           {l}
-          {ownSlides(l) ? <span className="ml-1 align-middle text-[7px] opacity-70">●</span> : null}
         </button>
       ))}
       {translating ? (
