@@ -1,0 +1,589 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Настоящая задача, решённая с помощью ИИ — разбор</title>
+<style>
+  /* Слайды 1280×720 (16:9). Печать в PDF: Ctrl+P → Save as PDF,
+     поля None, фоновая графика включена. Готовый PDF грузится
+     в само приложение, о котором доклад. */
+  @page { size: 1280px 720px; margin: 0; }
+
+  :root {
+    --bg:      #0d1117;
+    --panel:   #161b25;
+    --line:    #262e3d;
+    --fg:      #e9ecf3;
+    --dim:     #8b93a6;
+    --accent:  #62a0ff;
+    --ok:      #43d39e;
+    --warn:    #e8b64c;
+    --bad:     #f2726f;
+    --mono: ui-monospace, "Cascadia Code", "SF Mono", Consolas, monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #05070b;
+    color: var(--fg);
+    font-family: system-ui, -apple-system, "Segoe UI", Inter, sans-serif;
+    font-size: 20px;
+    line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .slide {
+    position: relative;
+    width: 1280px;
+    height: 720px;
+    padding: 62px 76px 66px;
+    background: var(--bg);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    page-break-after: always;
+    break-after: page;
+  }
+  .slide + .slide { margin-top: 26px; }
+  @media print { .slide + .slide { margin-top: 0; } }
+
+  /* Номер и тонкая линия сверху — ориентир для докладчика */
+  .slide::before {
+    content: "";
+    position: absolute; inset: 0 0 auto 0; height: 3px;
+    background: linear-gradient(90deg, var(--accent), transparent 62%);
+  }
+  .num {
+    position: absolute; right: 40px; bottom: 26px;
+    font: 600 13px var(--mono); color: #39415280; letter-spacing: .06em;
+  }
+
+  h1 { font-size: 60px; line-height: 1.08; font-weight: 700; letter-spacing: -.02em; }
+  /* Отбивка снизу обязательна: на плотных слайдах тело центрируется
+     и шапка таблицы иначе прилипает к строчным выносным заголовка. */
+  h2 { font-size: 40px; line-height: 1.14; font-weight: 700; letter-spacing: -.015em; margin-bottom: 18px; }
+  .kicker {
+    font: 600 14px/1 var(--mono);
+    color: var(--accent);
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    margin-bottom: 18px;
+  }
+  .lede { font-size: 25px; color: var(--dim); margin-top: 14px; max-width: 62ch; }
+  /* Тело оптически центрируется в остатке под заголовком. Иначе контент
+     виснет вверху, а нижняя треть слайда стоит пустой — на проекторе
+     это читается как незаконченная вёрстка. */
+  .body {
+    margin-top: 26px; flex: 1; min-height: 0;
+    display: flex; flex-direction: column; justify-content: center; gap: 0;
+  }
+
+  ul { list-style: none; }
+  li { position: relative; padding-left: 26px; margin-bottom: 13px; max-width: 82ch; }
+  li::before {
+    content: ""; position: absolute; left: 4px; top: .62em;
+    width: 7px; height: 7px; border-radius: 2px; background: var(--accent);
+  }
+  li.no::before { background: var(--bad); }
+  li.yes::before { background: var(--ok); }
+  b, strong { color: #fff; font-weight: 650; }
+  .q { color: var(--dim); }
+
+  table { border-collapse: collapse; width: 100%; font-size: 18px; }
+  th, td { text-align: left; padding: 9px 14px 9px 0; vertical-align: top; border-bottom: 1px solid var(--line); }
+  th { color: var(--dim); font: 600 13px/1.3 var(--mono); text-transform: uppercase; letter-spacing: .08em; padding-bottom: 11px; }
+  td.mono, .mono { font-family: var(--mono); font-size: 17px; }
+  .ok { color: var(--ok); }  .bad { color: var(--bad); }  .warn { color: var(--warn); }
+
+  /* Пометка «использовано» — отдельным значком, а не цветом текста:
+     правило для <b> перекрашивает содержимое в белый, и цветовая
+     маркировка становится невидимой. */
+  .used   { color: var(--ok);  font-weight: 700; margin-right: 7px; }
+  .unused { color: #48506233; font-weight: 700; margin-right: 7px; }
+
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 34px; }
+  .cols3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; }
+  .card {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 12px; padding: 20px 22px;
+  }
+  .card h3 { font-size: 20px; margin-bottom: 8px; font-weight: 650; }
+  .card p { font-size: 17px; color: var(--dim); }
+
+  .big { font: 700 54px/1 var(--mono); letter-spacing: -.03em; }
+  .big.ok { color: var(--ok); } .big.bad { color: var(--bad); }
+  .unit { font-size: 17px; color: var(--dim); font-family: system-ui; letter-spacing: 0; }
+
+  .note {
+    border-left: 3px solid var(--warn);
+    background: #e8b64c12;
+    padding: 12px 18px; border-radius: 0 8px 8px 0;
+    font-size: 18px; color: #d8c294;
+  }
+
+  /* --- схемы --- */
+  .flow { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .node {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+    padding: 12px 16px; font-size: 17px; text-align: center; min-width: 96px;
+  }
+  .node.hl { border-color: var(--accent); background: #62a0ff14; }
+  .node.dead { border-color: #3a2a2a; color: #7a6a6a; }
+  .node small { display: block; color: var(--dim); font-size: 13px; margin-top: 3px; }
+  .arrow { color: #4a5468; font-size: 22px; }
+
+  .shared {
+    border: 2px dashed var(--accent); border-radius: 12px; padding: 14px;
+    position: relative;
+  }
+  .shared::after {
+    content: "расшарено в Teams";
+    position: absolute; top: -11px; left: 14px;
+    background: var(--bg); padding: 0 8px;
+    font: 600 12px var(--mono); color: var(--accent); letter-spacing: .08em;
+  }
+  .private {
+    border: 2px dashed #3d4658; border-radius: 12px; padding: 14px; position: relative;
+  }
+  .private::after {
+    content: "не расшарено";
+    position: absolute; top: -11px; left: 14px;
+    background: var(--bg); padding: 0 8px;
+    font: 600 12px var(--mono); color: var(--dim); letter-spacing: .08em;
+  }
+
+  .title-slide { justify-content: center; }
+  .title-slide .meta { margin-top: 40px; color: var(--dim); font-size: 19px; }
+</style>
+</head>
+<body>
+
+<!-- 1 ─────────────────────────────────────────────────────────── -->
+<section class="slide title-slide">
+  <div class="kicker">Разбор случая</div>
+  <h1>Доклад залу, у которого<br>нет общего языка.</h1>
+  <p class="lede">Выучить португальский как следует — вот настоящий ответ, и тут я
+     медленнее, чем хотел бы. Пока же есть ответ инженерный: дать залу
+     субтитры на его языке, а мне — вопросы на моём. Этот доклад о том,
+     <b>как</b> это было сделано, а не о том, что оно умеет.</p>
+  <div class="meta mono">Живые субтитры для встреч · сделано за дни, не месяцы · работает бесплатно</div>
+  <div class="num">01</div>
+</section>
+
+<!-- 2 ─────────────────────────────────────────────────────────── -->
+<section class="slide">
+  <div class="kicker">Задача</div>
+  <h2>Переписка работает.<br>Трудно с речью.</h2>
+  <div class="body">
+    <div class="cols">
+      <div>
+        <ul>
+          <li>Разработчики переписываются по-английски, и это работает.</li>
+          <li>Живая речь — <b>вот где ломается</b>, начиная с меня. Мой
+              португальский пока в работе, поэтому на встрече я теряю
+              вопросы, а не слайды.</li>
+          <li>И не только со мной: английский на скорости живой речи удобен
+              в зале не всем одинаково.</li>
+          <li>У Teams есть живые субтитры. Но <b>переведённые</b> требуют Premium,
+              и он нужен каждому участнику.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Форма задачи</h3>
+        <p style="margin-bottom:14px">Доклад — это вещание <b>один ко многим</b> с хвостом вопросов
+          <b>многие к одному</b>. У этих двух направлений совершенно разные
+          требования, и это оказалось самым важным, что стоило заметить.</p>
+        <table>
+          <tr><td>Я → зал</td><td class="mono">важна задержка</td></tr>
+          <tr><td>Зал → я</td><td class="mono">важна точность</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="num">02</div>
+</section>
+
+<!-- 3 ─────────────────────────────────────────────────────────── -->
+<section class="slide">
+  <div class="kicker">Почему сейчас</div>
+  <h2>Та же затея с разницей в два года</h2>
+  <div class="body">
+    <table>
+      <thead><tr><th style="width:23%"></th><th style="width:38%">Тогда</th><th>Сейчас</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><b>Распознавание речи</b></td>
+          <td class="q">Платный облачный сервис, ключ, оплата по часам</td>
+          <td class="ok">Встроено в браузер. Бесплатно, без лимитов.</td>
+        </tr>
+        <tr>
+          <td><b>Перевод</b></td>
+          <td class="q">Платный API, поход по сети на каждую фразу</td>
+          <td class="ok">Работает <b>на устройстве</b>. Без сети, без ключа, без квоты.</td>
+        </tr>
+        <tr>
+          <td><b>Определение языка</b></td>
+          <td class="q">Отдельная модель, своя настройка, свои отказы</td>
+          <td class="ok">Одна фраза в промпте.</td>
+        </tr>
+        <tr>
+          <td><b>Сделать это</b></td>
+          <td class="q">Недели команды. Ради проблемы одного человека никто бы не согласовал.</td>
+          <td class="ok">Дни одного человека. Согласовывать не у кого.</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="note" style="margin-top:26px">
+      Интересна последняя строка. <b>Экономика изменилась раньше технологии.</b>
+      Задачи, которые касаются одного человека, никогда не стоили проекта.
+      Теперь они стоят одного вечера — и потому решаются.
+    </div>
+  </div>
+  <div class="num">03</div>
+</section>
+
+<!-- 4 ─────────────────────────────────────────────────────────── -->
+<section class="slide">
+  <div class="kicker">Метод</div>
+  <h2>Я спрашивал не одну модель. Я собирал совет.</h2>
+  <div class="body">
+    <!-- Модели опрашиваются ПАРАЛЛЕЛЬНО, поэтому стоят столбиком.
+         В ряд они читались бы как последовательные шаги. -->
+    <div class="flow" style="margin:6px 0 30px">
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div class="node hl">Модель A<small>план №1 — хорош</small></div>
+        <div class="node dead">Модель B<small>план №2 — мимо</small></div>
+      </div>
+      <span class="arrow">→</span>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div class="node">Модель C<small>критикует A</small></div>
+        <div class="node">Модель D<small>критикует A</small></div>
+      </div>
+      <span class="arrow">→</span>
+      <div class="node hl" style="align-self:center">Модель A<small>правит по критике</small></div>
+      <span class="arrow">→</span>
+      <div class="node hl" style="align-self:center">ТЗ</div>
+    </div>
+    <div class="cols">
+      <div>
+        <ul>
+          <li>Задать <b>один вопрос 2–4 моделям</b>, независимо. Дёшево и параллельно.</li>
+          <li>Выбрать лучший план. Здесь первый был уже хорош, а второй явно
+              не туда — <b>ценно именно сравнение</b>, а не среднее.</li>
+          <li>Отдать победителя <b>остальным как критикам</b>, а не как авторам.</li>
+          <li>Вернуть критику <b>исходному автору</b>.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>У этого теперь есть название</h3>
+        <p><b>LLM Council</b> Карпатого — параллельный опрос, взаимная рецензия,
+           синтез. Я пользовался <b>состязательным</b> вариантом: рецензентам
+           велено искать изъяны, а не соглашаться.</p>
+        <p style="margin-top:12px">Почему работает: слепое пятно одной модели становится итоговым
+           ответом. У критика с другим слепым пятном этого пятна нет.</p>
+      </div>
+    </div>
+  </div>
+  <div class="num">04</div>
+</section>
+
+<!-- 5 ─────────────────────────────────────────────────────────── -->
+<section class="slide">
+  <div class="kicker">Свидетельства</div>
+  <h2>Что критики действительно изменили</h2>
+  <div class="body">
+    <table>
+      <thead><tr><th style="width:34%">Первый план</th><th style="width:30%">Итог</th><th>Почему развернулось</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Azure Speech как движок</td>
+          <td class="ok">Никаких платных сервисов</td>
+          <td class="q">Требует карту даже на бесплатном плане. Коллеги этим не воспользуются.</td>
+        </tr>
+        <tr>
+          <td>Принимать PPTX и конвертировать LibreOffice</td>
+          <td class="ok">Только PDF</td>
+          <td class="q">Убрало сервер, разбор OOXML и целый класс ошибок вёрстки.</td>
+        </tr>
+        <tr>
+          <td>Свой ресемплер звука и тест к нему</td>
+          <td class="ok">Один аргумент конструктора</td>
+          <td class="q">Браузер уже умеет ресемплить. День работы, которого не требовалось.</td>
+        </tr>
+        <tr>
+          <td>Языки зашиты в код</td>
+          <td class="ok">Объект профиля</td>
+          <td class="q">«У твоих коллег другие языки». Об этом я вообще не подумал.</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="note" style="margin-top:24px">
+      Каждая правка <b>убрала</b> работу. Критики не добавляли возможностей —
+      они вычёркивали планы. Это самое ценное, что умеет рецензент, и ровно
+      то, чего одна воодушевлённая модель себе не сделает.
+    </div>
+  </div>
+  <div class="num">05</div>
+</section>
+
+<!-- 6 ─────────────────────────────────────────────────────────── -->
+<section class="slide">
+  <div class="kicker">Метод</div>
+  <h2>Артефакт — это ТЗ. Код идёт следом.</h2>
+  <div class="body">
+    <div class="cols">
+      <div>
+        <ul>
+          <li>Я писал и переписывал <b>техзадание</b>, а не промпты. Требования,
+              критерии приёмки, явные не-цели.</li>
+          <li>Каждый разворот с прошлого слайда <b>записан там вместе с причиной</b>.
+              Через полтора месяца я не буду заново спорить про Azure.</li>
+          <li>В индустрии это зовут <b>spec-driven development</b>, и в 2026-м свой
+              вариант выкатил каждый инструмент с агентами.</li>
+          <li>Причина совпадает с моим опытом: агенты хорошо пишут код и
+              <b>плохо угадывают замысел</b>. Отказ — это снос, а не синтаксис.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Что дало разницу</h3>
+        <p><b>Не-цели.</b> «Без PPTX. Без аккаунтов. Без сервера.» Записанные,
+           они перестают возвращаться.</p>
+        <p style="margin-top:12px"><b>Критерии приёмки как тесты.</b> «В стенограмме нет фраз на чужом
+           языке» — проверяемо. «Хорошее качество» — нет.</p>
+        <p style="margin-top:12px"><b>Журнал решений.</b> ТЗ заканчивается таблицей того, что развернули
+           и почему, — самая перечитываемая страница.</p>
+      </div>
+    </div>
+  </div>
+  <div class="num">06</div>
+</section>
+
+<!-- 7 ─────────────────────────────────────────────────────────── -->
+<section class="slide">
+  <div class="kicker">Метод</div>
+  <h2>Измерь до того, как строить. Одна страница кода.</h2>
+  <div class="body">
+    <p class="lede" style="margin-top:0;margin-bottom:22px">До приложения я написал один HTML-файл, который проверял каждое
+       допущение на том самом ноутбуке. Это заняло минуты и изменило
+       архитектуру.</p>
+    <div class="cols3">
+      <div class="card">
+        <div class="big ok">147<span class="unit"> ms</span></div>
+        <p style="margin-top:8px">Распознавание в браузере, от конца фразы до финального текста.
+           Я закладывал <b>1000&nbsp;мс</b>.</p>
+      </div>
+      <div class="card">
+        <div class="big bad">~600</div>
+        <p style="margin-top:8px">Запросов к облачной модели на двухчасовой доклад при моём реальном
+           темпе речи. Почти наверняка выше бесплатной суточной квоты.</p>
+      </div>
+      <div class="card">
+        <div class="big ok">0</div>
+        <p style="margin-top:8px">Нужных драйверов, серверов и аккаунтов — все три риска, под которые
+           я планировал обходные пути, не существовали.</p>
+      </div>
+    </div>
+    <div class="note" style="margin-top:26px">
+      Оба числа указали в одну сторону и <b>развернули выбор по умолчанию</b>.
+      Я собирался пустить свою речь через облачную модель. Замер сказал:
+      бери браузер, а облако оставь залу. В двадцать раз быстрее и бесплатно.
+    </div>
+  </div>
+  <div class="num">07</div>
+</section>
+
+<!-- 8 ─────────────────────────────────────────────────────────── -->
+<section class="slide">
+  <div class="kicker">Продукт · живая демонстрация</div>
+  <h2>Одно окно. Зал читает вместе с вами.</h2>
+  <div class="body">
+    <div class="cols" style="grid-template-columns: 1.35fr 1fr; align-items:start">
+      <div class="shared">
+        <div style="display:grid;grid-template-columns:1.6fr 1fr;gap:10px">
+          <div style="background:#0a0d13;border-radius:8px;padding:14px;min-height:168px;display:flex;align-items:flex-end">
+            <span style="color:#5b6478;font-size:15px" class="mono">слайд + разметка по ходу</span>
+          </div>
+          <div style="background:#0a0d13;border-radius:8px;padding:12px;min-height:168px;font-size:14px;line-height:1.65">
+            <div class="mono" style="color:#5b6478;margin-bottom:8px">переписка</div>
+            <div class="q">Executamos o Kubernetes…</div>
+            <div class="q" style="margin-top:6px">Desculpem, uma pergunta…</div>
+          </div>
+        </div>
+        <div style="background:#000000aa;border-radius:6px;padding:10px 12px;font-size:19px;font-weight:600;margin-top:10px;text-align:center">
+          Executamos o Kubernetes em três regiões.
+        </div>
+      </div>
+      <div class="card">
+        <h3>Этот слайд говорил «два окна»</h3>
+        <p>В первом варианте было второе, личное окно: лог мой, зал видит
+           только слайд.</p>
+        <p style="margin-top:12px">Потом очевидный вопрос: <b>а лог для кого?</b> Для тех, кому нужно
+           прочитать, что я только что сказал. Личному окну стало нечего
+           хранить, и оно было удалено.</p>
+        <p style="margin-top:12px">Всё в одной расшаренной картинке: слайд, субтитры, переписка.
+           <b>Без бота, без Premium, ничего не ставить.</b></p>
+      </div>
+    </div>
+  </div>
+  <div class="num">08</div>
+</section>
+
+<!-- 9 ─────────────────────────────────────────────────────────── -->
+<section class="slide">
+  <div class="kicker">Архитектура</div>
+  <h2>Два канала, два движка, один контракт</h2>
+  <div class="body">
+    <div class="flow" style="margin-bottom:26px">
+      <div class="node">Мой микрофон<small>en / ru / pt</small></div>
+      <span class="arrow">→</span>
+      <div class="node hl">Речь в браузере<small>перевод на устройстве</small></div>
+      <span class="arrow">→</span>
+      <div class="node hl" style="min-width:150px">SpeechProvider<small>один интерфейс</small></div>
+      <span class="arrow">→</span>
+      <div class="node">Субтитры<small>язык зала</small></div>
+    </div>
+    <div class="flow" style="margin-bottom:28px">
+      <div class="node">Звук зала<small>pt / en</small></div>
+      <span class="arrow">→</span>
+      <div class="node hl">Облачная модель<small>определяет язык</small></div>
+      <span class="arrow">→</span>
+      <div class="node hl" style="min-width:150px">SpeechProvider<small>тот же интерфейс</small></div>
+      <span class="arrow">→</span>
+      <div class="node">Две стенограммы</div>
+    </div>
+    <table>
+      <thead><tr><th style="width:26%">Слой</th><th style="width:32%">Выбор</th><th>Почему он</th></tr></thead>
+      <tbody>
+        <tr><td>Слайды</td><td class="mono">pdf.js в canvas</td><td class="q">Единственный надёжный способ отрисовать слайд как в печати</td></tr>
+        <tr><td>Состояние</td><td class="mono">Один стор Zustand</td><td class="q">Слайды, лог и разметка в одном месте — без проброса пропсов</td></tr>
+        <tr><td>Разметка</td><td class="mono">SVG поверх canvas</td><td class="q">PDF не меняется никогда. Попадание считает браузер.</td></tr>
+        <tr><td>Хранение</td><td class="mono">IndexedDB + localStorage</td><td class="q">Лог переживает случайный F5; ничего не покидает машину</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="num">09</div>
+</section>
+
+<!-- 10 ────────────────────────────────────────────────────────── -->
+<section class="slide">
+  <div class="kicker">Решение, определившее всё</div>
+  <h2>Пусть выбирает человек, а выбор пусть выбирает движок</h2>
+  <div class="body">
+    <table>
+      <thead><tr><th style="width:30%"></th>
+        <th style="width:35%">Пин — язык называю я</th>
+        <th>Авто — язык определяет модель</th></tr></thead>
+      <tbody>
+        <tr><td><b>Задержка субтитра</b></td><td class="ok mono">~0.15 s</td><td class="warn mono">~3 s</td></tr>
+        <tr><td><b>Текст по ходу речи</b></td><td class="ok">да</td><td class="q">нет — фраза целиком</td></tr>
+        <tr><td><b>Суточные лимиты</b></td><td class="ok">нет</td><td class="warn">общая квота</td></tr>
+        <tr><td><b>Ключ API</b></td><td class="ok">не нужен</td><td class="q">обязателен</td></tr>
+        <tr><td><b>Мне надо помнить</b></td><td class="q">нажать перед сменой языка</td><td class="ok">ничего</td></tr>
+      </tbody>
+    </table>
+    <div class="cols" style="margin-top:26px">
+      <div class="note" style="border-color:var(--ok);background:#43d39e12;color:#a9e3cb">
+        <b>Микрофон в пине, зал в авто.</b> Я знаю, на каком языке сейчас
+        заговорю. Я не могу знать, на каком придёт следующий вопрос.
+      </div>
+      <div class="card">
+        <p>Настройка не косметическая — она <b>выбирает движок</b>. Приложение
+           не спрашивает «какой провайдер?»; оно задаёт вопрос, на который
+           человек может ответить, а остальное выводит само.</p>
+      </div>
+    </div>
+  </div>
+  <div class="num">10</div>
+</section>
+
+<!-- 11 ────────────────────────────────────────────────────────── -->
+<section class="slide">
+  <div class="kicker">Инструментарий</div>
+  <h2>Какой модный приём и когда</h2>
+  <div class="body">
+    <table style="font-size:15.5px">
+      <thead><tr>
+        <th style="width:19%">Приём</th><th style="width:26%">Что это на деле</th>
+        <th style="width:27%">Стоит того, когда</th><th>Лишний груз, когда</th></tr></thead>
+      <tbody>
+        <!-- Галочка отдельным элементом: правило для <b> перекрасило бы
+             цветной текст в белый, и пометка стала бы невидимой. -->
+        <tr><td><span class="used">✓</span><b>Совет моделей</b></td>
+          <td>Несколько моделей отвечают, потом критикуют друг друга</td>
+          <td>Архитектура и необратимые решения</td>
+          <td class="q">Рутинный код, который проще прочитать</td></tr>
+        <tr><td><span class="used">✓</span><b>От спецификации</b></td>
+          <td>Версионируемое ТЗ — источник истины, код порождается из него</td>
+          <td>Всё, что вы будете менять и через месяц</td>
+          <td class="q">Скрипт, который запускают один раз</td></tr>
+        <tr><td><span class="used">✓</span><b>Стенд разработки</b></td>
+          <td>Заглушка провайдера и роут с записанным сценарием</td>
+          <td>На входе живой человек, железо или платный API</td>
+          <td class="q">Чистые функции — просто вызовите их</td></tr>
+        <tr><td><span class="used">✓</span><b>Сначала разведка</b></td>
+          <td>Одноразовая страница, меряющая допущения на реальной машине</td>
+          <td>Вы вот-вот заложитесь на выдуманное число</td>
+          <td class="q">Число задокументировано и стабильно</td></tr>
+        <tr><td><span class="unused">·</span><b>Эвалы</b></td>
+          <td>Набор тестов с оценкой, ловящий просадки качества</td>
+          <td>Выход модели и есть продукт, и он выкатывается регулярно</td>
+          <td class="q">Разовый инструмент, человек в цикле каждый запуск</td></tr>
+        <tr><td><span class="unused">·</span><b>Голосовой помощник</b></td>
+          <td>Сессия речь-в-речь по WebRTC, доли секунды</td>
+          <td>Руки и глаза заняты — за рулём, у доски, в операционной</td>
+          <td class="q">Печатать быстрее и тише, а так почти всегда</td></tr>
+      </tbody>
+    </table>
+    <div class="note" style="margin-top:8px;font-size:15px">
+      <span class="used">✓</span> — то, чем проект пользовался на деле. Крепче
+      всего я защищал бы заглушку провайдера: <b>без неё каждая правка
+      интерфейса требует живого человека, говорящего в микрофон.</b>
+    </div>
+  </div>
+  <div class="num">11</div>
+</section>
+
+<!-- 12 ────────────────────────────────────────────────────────── -->
+<section class="slide">
+  <div class="kicker">Честное умолчание · что изменится дальше</div>
+  <h2>Оркестрация агентов: я ею не пользовался</h2>
+  <div class="body">
+    <div class="cols">
+      <div>
+        <p style="color:var(--dim);margin-bottom:16px">Шаблоны 2026-го устоялись: супервизор, конвейер, параллельное
+           разветвление, маршрутизатор, иерархия, оценщик-оптимизатор. Я не
+           использовал ни одного и считаю, что правильно.</p>
+        <ul>
+          <li><b>Почему нет:</b> одно приложение, один разработчик, работа почти
+              целиком последовательная. Оркестрация покупает параллелизм,
+              которого мне некуда девать.</li>
+          <li><b>Когда окупается:</b> механическая правка по многим файлам —
+              миграции, аудиты, обходы. Разветвление под супервизором.</li>
+          <li><b>Когда окупится здесь, потом:</b> проход рецензии. Несколько
+              критиков по разным осям, разом, — это ровно мой совет, только
+              автоматизированный вместо копипасты.</li>
+        </ul>
+      </div>
+      <div>
+        <h3 style="font-size:22px;margin-bottom:14px">Что улучшится вместе с моделями</h3>
+        <ul style="font-size:18px">
+          <li>Перевод на устройстве станет лучше → бесплатный путь перестанет быть
+              компромиссом и станет выбором по умолчанию.</li>
+          <li>Потоковые модели речи созреют → определение языка и малая задержка
+              перестанут быть разменом, и моё центральное решение <b>испарится</b>.</li>
+          <li>Дешёвые аудиотокены → довод про квоту исчезает.</li>
+          <li>Длиннее контекст → вся встреча не только расшифрована, но и пересказана.</li>
+        </ul>
+        <div class="note" style="margin-top:18px;font-size:17px">
+          Интерфейс провайдера существует ровно затем, чтобы <b>ничто из этого не
+          требовало переписывать приложение</b> — только добавить файл.
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="num">12</div>
+</section>
+
+</body>
+</html>
