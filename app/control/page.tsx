@@ -88,6 +88,8 @@ export default function ControlPage() {
   // и после мастера: в разметке дёргать хранилище на каждый кадр незачем.
   const [hasKey, setHasKey] = useState(false);
   const [full, setFull] = useState(false);
+  /** Курсор у верхнего края слайда — там живут инструменты разметки. */
+  const [nearTop, setNearTop] = useState(false);
 
   const bus = useRef(getBus());
   const stageRef = useRef<HTMLDivElement>(null);
@@ -254,7 +256,17 @@ export default function ControlPage() {
   return (
     <main className="flex h-dvh flex-col overflow-hidden">
       <div className="flex min-h-0 flex-1">
-        <div ref={stageRef} className="stage group/stage">
+        <div
+          ref={stageRef}
+          className="stage group/stage"
+          onPointerMove={(e) => {
+            const top = stageRef.current?.getBoundingClientRect().top ?? 0;
+            // setState с тем же значением React отбрасывает, поэтому
+            // перерисовка случается только на пересечении границы.
+            setNearTop(e.clientY - top < LAYOUT.TOOLS_REVEAL_PX);
+          }}
+          onPointerLeave={() => setNearTop(false)}
+        >
           {shown ? (
             <>
               <SlideCanvas
@@ -276,7 +288,7 @@ export default function ControlPage() {
                 onMove={s.moveShape}
                 onUndo={s.undoShape}
               />
-              <AnnotationTools />
+              <AnnotationTools visible={nearTop} />
               {/* Во весь экран растянут только слайд, нижней полосы там
                   нет — субтитры ложатся поверх него и гаснут сами. */}
               {full ? <SlideCaptions rect={rect} /> : null}

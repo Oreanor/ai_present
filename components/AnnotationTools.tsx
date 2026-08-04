@@ -7,19 +7,25 @@ import { useT } from '@/lib/ui-prefs';
 /**
  * Выбор фигуры и цвета для разметки.
  *
- * Прибита к верху слайда по центру и проявляется при наведении: рисуют
- * изредка, а место панель занимала бы постоянно. Верх по центру — потому
- * что у краёв слайда во всю высоту лежат зоны перелистывания, и панель
- * там воровала бы их клики.
+ * Прибита к верху слайда по центру и проявляется, только когда курсор
+ * подняли к самому верху. От движения мышью где угодно по слайду она
+ * всплывала постоянно — в том числе прямо во время рисования.
+ *
+ * Верх по центру — потому что у краёв слайда во всю высоту лежат зоны
+ * перелистывания, и панель там воровала бы их клики.
  *
  * Клавиатурой то же самое: Tab меняет фигуру, Q стирает слайд.
  */
-export function AnnotationTools() {
+export function AnnotationTools({ visible }: { visible: boolean }) {
   const { shapeKind, shapeColor, setShapeKind, setShapeColor, clearShapes, undoShape } = useStore();
   const t = useT();
 
   return (
-    <div className="absolute left-1/2 top-2 flex -translate-x-1/2 items-center gap-1 rounded-lg bg-black/70 p-1 opacity-0 transition-opacity duration-150 focus-within:opacity-100 hover:opacity-100 group-hover/stage:opacity-70">
+    <div
+      className={`absolute left-1/2 top-2 flex -translate-x-1/2 items-center gap-1 rounded-lg bg-black/70 p-1 transition-opacity duration-150 ${
+        visible ? 'opacity-90' : 'pointer-events-none opacity-0'
+      }`}
+    >
       {SHAPES.map((s) => (
         <button
           key={s.kind}
