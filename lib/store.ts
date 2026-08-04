@@ -8,6 +8,7 @@ import {
   type ChannelStatus,
   type Entry,
   type Lang,
+  type LangMode,
   type MeetingProfile,
   type PresentationState,
   type Shape,
@@ -16,7 +17,7 @@ import {
   type Utterance,
 } from './types';
 import { CAPTIONS, SIDE_COLUMN } from './constants';
-import { DEFAULT_PROFILE, cycleLang, targetsFor } from './profile';
+import { DEFAULT_PROFILE, modeCycle, nextMode, targetsFor } from './profile';
 import { applyGlossary, type GlossaryEntry } from './glossary';
 import { translate } from './speech/translator';
 import { PALETTE, nextShapeKind } from './shapes';
@@ -65,6 +66,7 @@ type State = {
 
   addShape(s: Shape): void;
   removeShape(id: string): void;
+  moveShape(id: string, dx: number, dy: number): void;
   undoShape(): void;
   clearShapes(all?: boolean): void;
   setShapeKind(k: ShapeKind): void;
@@ -81,7 +83,7 @@ type State = {
   setViewLang(lang: Lang): Promise<void>;
 
   setStatus(ch: Speaker, s: ChannelStatus): void;
-  cyclePresenterLang(): Lang | null;
+  cycleMode(ch: Speaker): LangMode | null;
   toast_(text: string, kind?: 'info' | 'warn' | 'error'): void;
 
   snapshot(): PresentationState;
@@ -158,6 +160,21 @@ export const useStore = create<State>((set, get) => ({
   removeShape(id) {
     const { annotations, slideIndex, docId } = get();
     const list = (annotations[slideIndex] ?? []).filter((s) => s.id !== id);
+    const next = { ...annotations, [slideIndex]: list };
+    storage.saveAnnotations(docId, next);
+    set({ annotations: next });
+  },
+
+  /**
+   * Перенос фигуры на dx/dy в долях области слайда. Фигура остаётся на
+   * своём месте в стеке: она нарисована поверх соседей не случайно, и
+   * подъём наверх при каждом сдвиге ломал бы порядок перекрытий.
+   */
+  moveShape(id, dx, dy) {
+    const { annotations, slideIndex, docId } = get();
+    const list = (annotations[slideIndex] ?? []).map((s) =>
+      s.id === id ? { ...s, x1: s.x1 + dx, y1: s.y1 + dy, x2: s.x2 + dx, y2: s.y2 + dy } : s,
+    );
     const next = { ...annotations, [slideIndex]: list };
     storage.saveAnnotations(docId, next);
     set({ annotations: next });
@@ -354,12 +371,21 @@ export const useStore = create<State>((set, get) => ({
     set(ch === 'presenter' ? { presenterStatus: s } : { audienceStatus: s });
   },
 
-  /** Клавиша L. Работает только в режиме pin — в auto переключать нечего. */
-  cyclePresenterLang() {
+  /**
+   * Перебор языка канала: языки профиля и AUTO по кругу (клавиша L для
+   * микрофона, кнопка — для обоих). Возвращает новый режим или null,
+   * если перебирать нечего: один язык без AUTO — это не выбор.
+   */
+  cycleMode(ch) {
     const { profile } = get();
-    if (profile.presenterMode.kind !== 'pin') return null;
-    const next = cycleLang(profile.presenterLangs, profile.presenterMode.current);
-    get().setProfile({ ...profile, presenterMode: { kind: 'pin', current: next } });
+    const langs = ch === 'presenter' ? profile.presenterLangs : profile.audienceLangs;
+    const mode = ch === 'presenter' ? profile.presenterMode : profile.audienceMode;
+    if (modeCycle(langs).length < 2) return null;
+
+    const next = nextMode(langs, mode);
+    get().setProfile(
+      ch === 'presenter' ? { ...profile, presenterMode: next } : { ...profile, audienceMode: next },
+    );
     return next;
   },
 

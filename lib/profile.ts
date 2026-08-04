@@ -87,9 +87,27 @@ export function targetsFor(p: MeetingProfile, origLang: Lang): Lang[] {
   return p.transcriptLangs.filter((l) => l !== origLang);
 }
 
-export function cycleLang(langs: Lang[], current: Lang): Lang {
-  const i = langs.indexOf(current);
-  return langs[(i + 1) % langs.length] ?? current;
+/**
+ * Порядок перебора для кнопки канала: сначала языки, потом AUTO.
+ *
+ * AUTO появляется только при двух и более кандидатах — на одном языке
+ * определять нечего, а стоит это дороже всего (§4). Порядок именно такой,
+ * чтобы соседние нажатия давали соседние языки, а не прыгали через AUTO.
+ */
+export function modeCycle(langs: Lang[]): LangMode[] {
+  const out: LangMode[] = langs.map((l) => ({ kind: 'pin', current: l }));
+  if (langs.length >= 2) out.push({ kind: 'auto' });
+  return out;
+}
+
+export function nextMode(langs: Lang[], m: LangMode): LangMode {
+  const cycle = modeCycle(langs);
+  const i = cycle.findIndex((x) => (x.kind === 'auto' ? m.kind === 'auto' : m.kind === 'pin' && x.current === m.current));
+  return cycle[(i + 1) % cycle.length] ?? m;
+}
+
+export function sameMode(a: LangMode, b: LangMode): boolean {
+  return a.kind === 'auto' ? b.kind === 'auto' : b.kind === 'pin' && a.current === b.current;
 }
 
 export function modeLabel(m: LangMode): string {

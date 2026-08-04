@@ -172,8 +172,8 @@ const DICT = {
 
   apiKeyTitle: { en: 'Gemini API key', pt: 'Chave API Gemini' },
   apiKeyLead: {
-    en: 'Needed because at least one channel is on auto-detect. Stored in this browser only, never sent anywhere but Google. Pin both channels and this section disappears.',
-    pt: 'Necessária porque pelo menos um canal está em deteção automática. Guardada apenas neste navegador, nunca enviada para outro lado além da Google. Fixe ambos os canais e esta secção desaparece.',
+    en: 'The meeting-audio channel runs on Gemini in every case — the browser engine cannot accept a captured stream. Without a key only your microphone is heard, which still works and costs nothing. Stored in this browser only, never sent anywhere but Google.',
+    pt: 'O canal do áudio da reunião funciona sempre no Gemini — o motor do navegador não aceita um fluxo capturado. Sem chave só o seu microfone é ouvido, o que continua a funcionar e não custa nada. Guardada apenas neste navegador, nunca enviada para outro lado além da Google.',
   },
   keyKind: { en: 'What kind of key is it?', pt: 'Que tipo de chave é?' },
   tierFree: { en: 'Free', pt: 'Gratuita' },
@@ -253,9 +253,18 @@ const DICT = {
     pt: 'Parar de ouvir o microfone e a reunião',
   },
   hintMicLang: {
-    en: 'Which language I am speaking right now. Press before you switch. Shortcut: L',
-    pt: 'Que idioma estou a falar agora. Prima antes de mudar. Atalho: L',
+    en: 'Which language I am speaking right now. Press before you switch, or pick AUTO. Shortcut: L',
+    pt: 'Que idioma estou a falar agora. Prima antes de mudar, ou escolha AUTO. Atalho: L',
   },
+  hintRoomLang: {
+    en: 'Which language the meeting audio is in. AUTO detects it, a fixed language is cheaper and more accurate.',
+    pt: 'Em que idioma está o áudio da reunião. AUTO deteta-o; um idioma fixo é mais barato e mais exato.',
+  },
+  langFixedNeedsOne: {
+    en: 'Only one language is configured for this channel — nothing to switch.',
+    pt: 'Só está configurado um idioma para este canal — nada a mudar.',
+  },
+  channelNowIs: { en: 'now set to', pt: 'agora definido para' },
   hintElapsed: { en: 'Time since this window was opened', pt: 'Tempo desde que esta janela foi aberta' },
   hintCaptionsBack: { en: 'Press H to bring them back', pt: 'Prima H para as trazer de volta' },
   hintPrevSlide: { en: 'Previous slide (←)', pt: 'Diapositivo anterior (←)' },
@@ -272,11 +281,6 @@ const DICT = {
   connectedToControl: { en: 'Connected to Control.', pt: 'Ligado ao Control.' },
 
   // --- сообщения действий ---
-  micNowIs: { en: 'Microphone is now', pt: 'O microfone está agora em' },
-  nothingToSwitch: {
-    en: 'Language is detected automatically — nothing to switch.',
-    pt: 'O idioma é detetado automaticamente — nada a mudar.',
-  },
   micEngine: { en: 'Microphone engine', pt: 'Motor do microfone' },
   clearAllShapesConfirm: {
     en: 'Erase annotations on every slide?',

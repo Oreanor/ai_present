@@ -162,10 +162,12 @@
 <!-- 1 ─────────────────────────────────────────────────────────── -->
 <section class="slide title-slide">
   <div class="kicker">A worked example</div>
-  <h1>I could not talk to half<br>my colleagues.</h1>
-  <p class="lede">So I built a thing that fixes it — in a way that was not
-     available to me two years ago. This talk is about <b>how</b> I built it,
-     more than about what it does.</p>
+  <h1>Presenting to a room that does<br>not share one language.</h1>
+  <p class="lede">Learning Portuguese properly is the real answer, and I am
+     slower at it than I would like. Meanwhile there is an engineering answer:
+     give the room captions in its own language, and give me the questions in
+     mine. This talk is about <b>how</b> that got built — more than about what
+     it does.</p>
   <div class="meta mono">Live captions for meetings · built in days, not months · costs zero to run</div>
   <div class="num">01</div>
 </section>
@@ -173,16 +175,17 @@
 <!-- 2 ─────────────────────────────────────────────────────────── -->
 <section class="slide">
   <div class="kicker">The problem</div>
-  <h2>English is our working language.<br>On paper.</h2>
+  <h2>Writing works.<br>Speaking is the hard part.</h2>
   <div class="body">
     <div class="cols">
       <div>
         <ul>
           <li>Written communication among devs is in English, and that works.</li>
-          <li>Spoken communication is <b>where it breaks</b>. Not everyone is
-              comfortable in English at speaking speed.</li>
-          <li>I speak almost no Portuguese. In a meeting I lose the questions,
-              not the slides.</li>
+          <li>Live speech is <b>where it breaks</b> — starting with me. My
+              Portuguese is a work in progress, so in a meeting I lose the
+              questions, not the slides.</li>
+          <li>And it is not only me: English at speaking speed is not equally
+              comfortable for everyone in the room.</li>
           <li>Teams has live captions. <b>Translated</b> captions need Premium,
               and everyone would need it.</li>
         </ul>
@@ -399,31 +402,33 @@
 <!-- 8 ─────────────────────────────────────────────────────────── -->
 <section class="slide">
   <div class="kicker">The product · live demo</div>
-  <h2>Two windows. Only one is shared.</h2>
+  <h2>One window. The room reads along.</h2>
   <div class="body">
-    <div class="cols" style="grid-template-columns: 1.25fr 1fr; align-items:start">
+    <div class="cols" style="grid-template-columns: 1.35fr 1fr; align-items:start">
       <div class="shared">
-        <div style="background:#0a0d13;border-radius:8px;padding:16px;min-height:196px;display:flex;flex-direction:column;justify-content:space-between">
-          <div style="color:#5b6478;font-size:15px" class="mono">slide + annotations drawn live</div>
-          <div style="background:#000000aa;border-radius:6px;padding:10px 12px;font-size:19px;font-weight:600">
-            Executamos o Kubernetes em três regiões.
+        <div style="display:grid;grid-template-columns:1.6fr 1fr;gap:10px">
+          <div style="background:#0a0d13;border-radius:8px;padding:14px;min-height:168px;display:flex;align-items:flex-end">
+            <span style="color:#5b6478;font-size:15px" class="mono">slide + annotations drawn live</span>
+          </div>
+          <div style="background:#0a0d13;border-radius:8px;padding:12px;min-height:168px;font-size:14px;line-height:1.65">
+            <div class="mono" style="color:#5b6478;margin-bottom:8px">conversation</div>
+            <div class="q">Executamos o Kubernetes…</div>
+            <div class="q" style="margin-top:6px">Desculpem, uma pergunta…</div>
           </div>
         </div>
-        <p style="font-size:16px;color:var(--dim);margin-top:12px">
-          Captions live <b>inside</b> the shared window, so they reach the
-          audience as part of the picture. No bot, no Premium, nothing for
-          them to install.</p>
-      </div>
-      <div class="private">
-        <div style="background:#0a0d13;border-radius:8px;padding:14px;min-height:196px;font-size:15px;line-height:1.7">
-          <div class="mono" style="color:#5b6478;margin-bottom:8px">two full transcripts</div>
-          <div>Here I want to dwell on…</div>
-          <div class="q">Aqui quero deter-me em…</div>
-          <div style="margin-top:8px">Sorry, a quick question…</div>
-          <div class="q">Desculpem, uma pergunta…</div>
+        <div style="background:#000000aa;border-radius:6px;padding:10px 12px;font-size:19px;font-weight:600;margin-top:10px;text-align:center">
+          Executamos o Kubernetes em três regiões.
         </div>
-        <p style="font-size:16px;color:var(--dim);margin-top:12px">
-          The log, the originals, my notes — <b>mine only</b>.</p>
+      </div>
+      <div class="card">
+        <h3>This slide used to say "two windows"</h3>
+        <p>The first design had a second, private window: the log was mine,
+           the room saw only the slide.</p>
+        <p style="margin-top:12px">Then the obvious question — <b>who is the log
+           for?</b> It is for the people who need to read what I just said. So
+           the private window had nothing left to hold, and it was deleted.</p>
+        <p style="margin-top:12px">Everything is in one shared picture: slide,
+           captions, conversation. <b>No bot, no Premium, nothing to install.</b></p>
       </div>
     </div>
   </div>
@@ -457,7 +462,7 @@
       <thead><tr><th style="width:26%">Layer</th><th style="width:32%">Choice</th><th>Why that one</th></tr></thead>
       <tbody>
         <tr><td>Slides</td><td class="mono">pdf.js in canvas</td><td class="q">Only reliable way to render a print-accurate slide</td></tr>
-        <tr><td>Window sync</td><td class="mono">BroadcastChannel</td><td class="q">Native, no server, works between windows</td></tr>
+        <tr><td>State</td><td class="mono">One Zustand store</td><td class="q">Slides, log and annotations in one place — no prop threading</td></tr>
         <tr><td>Annotations</td><td class="mono">SVG over canvas</td><td class="q">The PDF is never modified. Browser does hit-testing.</td></tr>
         <tr><td>Storage</td><td class="mono">IndexedDB + localStorage</td><td class="q">Log survives an accidental F5; nothing leaves the machine</td></tr>
       </tbody>
@@ -536,7 +541,7 @@
           <td class="q">Typing is faster and quieter, which is most of the time</td></tr>
       </tbody>
     </table>
-    <div class="note" style="margin-top:18px">
+    <div class="note" style="margin-top:10px;font-size:16px">
       <span class="used">✓</span> marks what this project actually used. The mock
       provider is the one I would defend hardest: <b>without it, every UI change
       needs a live human talking into a microphone.</b>

@@ -21,6 +21,7 @@ export function AnnotationLayer({
   color,
   onAdd,
   onRemove,
+  onMove,
   onUndo,
 }: {
   shapes: Shape[];
@@ -30,11 +31,16 @@ export function AnnotationLayer({
   color?: string;
   onAdd?: (s: Omit<Shape, 'id'>) => void;
   onRemove?: (id: string) => void;
+  onMove?: (id: string, dx: number, dy: number) => void;
   onUndo?: () => void;
 }) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [draft, setDraft] = useState<Omit<Shape, 'id'> | null>(null);
-  const startRef = useRef<{ x: number; y: number; px: number; py: number } | null>(null);
+  // Живой сдвиг перетаскиваемой фигуры: в стор он попадает один раз,
+  // на отпускании, иначе каждое движение мыши писало бы в localStorage.
+  const [drag, setDrag] = useState<{ id: string; dx: number; dy: number } | null>(null);
+  const [overShape, setOverShape] = useState(false);
+  const startRef = useRef<{ x: number; y: number; px: number; py: number; grabbed: string | null } | null>(null);
 
   const toLocal = (e: React.PointerEvent | React.MouseEvent) => {
     const box = svgRef.current?.getBoundingClientRect();
@@ -47,44 +53,59 @@ export function AnnotationLayer({
     };
   };
 
+  const pick = (x: number, y: number) => hitTest(shapes, x, y, rect.w / Math.max(rect.h, 1));
+
   const onPointerDown = (e: React.PointerEvent) => {
     if (!interactive || e.button !== 0) return;
     const p = toLocal(e);
     if (!p) return;
-    startRef.current = p;
+    // Нажатие на существующую фигуру — это захват, а не начало новой.
+    // Рисовать поверх уже размеченного места всё равно некуда, а поправить
+    // промах хочется постоянно.
+    startRef.current = { ...p, grabbed: pick(p.x, p.y)?.id ?? null };
     (e.target as Element).setPointerCapture?.(e.pointerId);
   };
 
   const onPointerMove = (e: React.PointerEvent) => {
-    const start = startRef.current;
-    if (!interactive || !start || !kind || !color) return;
     const p = toLocal(e);
-    if (!p) return;
-    // Ниже порога считаем это кликом-удалением, а не рисованием: иначе
-    // каждое удаление порождало бы вырожденную фигуру нулевого размера.
+    if (!interactive || !p) return;
+    const start = startRef.current;
+
+    if (!start) {
+      // Курсор подсказывает, что под ним фигуру можно потащить.
+      setOverShape(!!pick(p.x, p.y));
+      return;
+    }
+
+    // Ниже порога считаем это кликом-удалением, а не жестом: иначе каждое
+    // удаление порождало бы вырожденную фигуру нулевого размера.
     if (Math.hypot(p.px - start.px, p.py - start.py) < ANNOTATION.DRAG_THRESHOLD_PX) return;
-    setDraft({ kind, color, x1: start.x, y1: start.y, x2: p.x, y2: p.y });
+
+    if (start.grabbed) setDrag({ id: start.grabbed, dx: p.x - start.x, dy: p.y - start.y });
+    else if (kind && color) setDraft({ kind, color, x1: start.x, y1: start.y, x2: p.x, y2: p.y });
   };
 
   const onPointerUp = (e: React.PointerEvent) => {
     const start = startRef.current;
     startRef.current = null;
+    setDraft(null);
+    setDrag(null);
     if (!interactive || !start) return;
     const p = toLocal(e);
     if (!p) return;
 
     const moved = Math.hypot(p.px - start.px, p.py - start.py);
     if (moved < ANNOTATION.DRAG_THRESHOLD_PX) {
-      // Клик — удаляем верхнюю фигуру под курсором.
-      const hit = hitTest(shapes, p.x, p.y, rect.w / Math.max(rect.h, 1));
-      if (hit) onRemove?.(hit.id);
+      // Клик без движения — удаляем верхнюю фигуру под курсором.
+      if (start.grabbed) onRemove?.(start.grabbed);
+    } else if (start.grabbed) {
+      onMove?.(start.grabbed, p.x - start.x, p.y - start.y);
     } else if (kind && color) {
       // Фигуру строим из точек нажатия и отпускания, а НЕ из draft:
       // быстрый жест может не дать ни одного промежуточного события,
       // и тогда фигура терялась бы молча.
       onAdd?.({ kind, color, x1: start.x, y1: start.y, x2: p.x, y2: p.y });
     }
-    setDraft(null);
   };
 
   const onContextMenu = (e: React.MouseEvent) => {
@@ -94,7 +115,14 @@ export function AnnotationLayer({
     onUndo?.();
   };
 
-  const all = draft ? [...shapes, { ...draft, id: '__draft' }] : shapes;
+  const placed = drag
+    ? shapes.map((s) =>
+        s.id === drag.id
+          ? { ...s, x1: s.x1 + drag.dx, y1: s.y1 + drag.dy, x2: s.x2 + drag.dx, y2: s.y2 + drag.dy }
+          : s,
+      )
+    : shapes;
+  const all = draft ? [...placed, { ...draft, id: '__draft' }] : placed;
   const W = 1000;
   const H = rect.h && rect.w ? (1000 * rect.h) / rect.w : 562;
 
@@ -110,7 +138,7 @@ export function AnnotationLayer({
         width: rect.w,
         height: rect.h,
         pointerEvents: interactive ? 'auto' : 'none',
-        cursor: interactive ? 'crosshair' : undefined,
+        cursor: !interactive ? undefined : drag || overShape ? 'move' : 'crosshair',
         touchAction: 'none',
       }}
       onPointerDown={onPointerDown}

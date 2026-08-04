@@ -1,4 +1,4 @@
-import type { LangMode, MeetingProfile } from '../types';
+import type { LangMode, MeetingProfile, Speaker } from '../types';
 import { FreeProvider, webSpeechSupported } from './free-provider';
 import { GeminiChunkProvider } from './gemini-provider';
 import { MockProvider } from './mock-provider';
@@ -17,9 +17,19 @@ export function createProvider(id: ProviderId): SpeechProvider {
   }
 }
 
-/** Провайдер выбирается режимом определения языка, а не стадией проекта (§4):
- *  pin → Web Speech (быстро, безлимитно), auto → Gemini (умеет определять). */
-export function providerForMode(mode: LangMode): ProviderId {
+/**
+ * Провайдер выбирается каналом и режимом (§4).
+ *
+ * Микрофон: pin → Web Speech (быстро, безлимитно), auto → Gemini (только
+ * он определяет язык).
+ *
+ * Зал — всегда Gemini. Web Speech не принимает поток захвата экрана и не
+ * поднимает вторую одновременную сессию: пин зала на нём означал бы второй
+ * распознаватель на том же микрофоне, который убивает первый. Пин здесь —
+ * подсказка языка модели, а не другой движок: он дешевле и точнее авто.
+ */
+export function providerFor(ch: Speaker, mode: LangMode): ProviderId {
+  if (ch === 'audience') return 'gemini';
   return mode.kind === 'pin' ? 'free' : 'gemini';
 }
 
@@ -32,8 +42,8 @@ export type ChannelPlan = {
 };
 
 export function planChannels(p: MeetingProfile): ChannelPlan {
-  const presenter = providerForMode(p.presenterMode);
-  const audience = providerForMode(p.audienceMode);
+  const presenter = providerFor('presenter', p.presenterMode);
+  const audience = providerFor('audience', p.audienceMode);
   const warnings: string[] = [];
 
   const a = createProvider(presenter).capabilities;

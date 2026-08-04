@@ -1,10 +1,10 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
-import { createProvider, planChannels, type ProviderId } from '@/lib/speech/registry';
+import { createProvider, planChannels, providerFor, type ProviderId } from '@/lib/speech/registry';
 import type { SpeechProvider } from '@/lib/speech/types';
 import { useStore } from '@/lib/store';
-import type { Lang, Speaker } from '@/lib/types';
+import type { Speaker } from '@/lib/types';
 
 /**
  * Управление каналами распознавания.
@@ -15,7 +15,30 @@ import type { Lang, Speaker } from '@/lib/types';
  */
 export function useChannels(terms: RefObject<string[]>) {
   const providers = useRef<Partial<Record<Speaker, SpeechProvider>>>({});
+  // Захваченный звук встречи переживает перезапуск канала: смена языка зала
+  // иначе заново спрашивала бы разрешение на показ экрана — посреди доклада.
+  const roomAudio = useRef<MediaStream | null>(null);
   const [listening, setListening] = useState(false);
+
+  const grabRoomAudio = useCallback(async (): Promise<MediaStream | null> => {
+    const cached = roomAudio.current;
+    if (cached?.getAudioTracks().some((t) => t.readyState === 'live')) return cached;
+
+    const st = useStore.getState();
+    try {
+      const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+      stream.getVideoTracks().forEach((t) => t.stop()); // видео не нужно
+      if (!stream.getAudioTracks().length) {
+        st.toast_('No system audio — pick "Entire screen" and tick "Also share system audio".', 'error');
+        return null;
+      }
+      roomAudio.current = stream;
+      return stream;
+    } catch {
+      st.toast_('Screen capture cancelled — only your microphone is being heard.', 'warn');
+      return null;
+    }
+  }, []);
 
   const start = useCallback(
     async (speaker: Speaker, id: ProviderId) => {
@@ -34,18 +57,9 @@ export function useChannels(terms: RefObject<string[]>) {
       // Звук встречи Web Speech принять не может — только поток захвата,
       // и только через провайдера, который умеет с потоком работать.
       if (!isPresenter && id !== 'mock') {
-        try {
-          const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
-          stream.getVideoTracks().forEach((t) => t.stop()); // видео не нужно
-          if (!stream.getAudioTracks().length) {
-            st.toast_('No system audio — pick "Entire screen" and tick "Also share system audio".', 'error');
-            return;
-          }
-          source = { kind: 'stream', stream };
-        } catch {
-          st.toast_('Screen capture cancelled — only your microphone is being heard.', 'warn');
-          return;
-        }
+        const stream = await grabRoomAudio();
+        if (!stream) return;
+        source = { kind: 'stream', stream };
       }
 
       await p.start({
@@ -60,12 +74,16 @@ export function useChannels(terms: RefObject<string[]>) {
         onStatus: (status) => useStore.getState().setStatus(speaker, status),
       });
     },
-    [terms],
+    [terms, grabRoomAudio],
   );
 
   const stop = useCallback(async (speaker: Speaker) => {
     await providers.current[speaker]?.stop();
     delete providers.current[speaker];
+    if (speaker === 'audience') {
+      roomAudio.current?.getTracks().forEach((t) => t.stop());
+      roomAudio.current = null;
+    }
     useStore.getState().setStatus(speaker, 'idle');
   }, []);
 
@@ -84,10 +102,28 @@ export function useChannels(terms: RefObject<string[]>) {
     await stop('audience');
   }, [stop]);
 
-  /** Клавиша L — сменить язык микрофона, не разрывая сессию. */
-  const setPresenterLanguage = useCallback((lang: Lang) => {
-    providers.current.presenter?.setLanguage?.(lang);
-  }, []);
+  /**
+   * Подтянуть канал под режим языка, который только что выбрали в профиле.
+   * Web Speech меняет язык на живой сессии; всё остальное — смена движка
+   * или переход в auto — требует перезапуска: язык задаётся при старте.
+   */
+  const applyMode = useCallback(
+    async (speaker: Speaker) => {
+      const running = providers.current[speaker];
+      if (!running) return;
+
+      const p = useStore.getState().profile;
+      const mode = speaker === 'presenter' ? p.presenterMode : p.audienceMode;
+      const want = providerFor(speaker, mode);
+
+      if (running.id === want && mode.kind === 'pin' && running.setLanguage) {
+        running.setLanguage(mode.current);
+        return;
+      }
+      await start(speaker, want);
+    },
+    [start],
+  );
 
   /** Клавиша G — аварийно перекинуть микрофон на другой движок. */
   const swapPresenter = useCallback(async () => {
@@ -106,8 +142,9 @@ export function useChannels(terms: RefObject<string[]>) {
     return () => {
       void live.presenter?.stop();
       void live.audience?.stop();
+      roomAudio.current?.getTracks().forEach((t) => t.stop());
     };
   }, []);
 
-  return { listening, start, stop, startAll, stopAll, setPresenterLanguage, swapPresenter };
+  return { listening, start, stop, startAll, stopAll, applyMode, swapPresenter };
 }

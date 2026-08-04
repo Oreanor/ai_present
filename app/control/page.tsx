@@ -18,12 +18,12 @@ import { exportAll } from '@/lib/export';
 import { clock, usd } from '@/lib/format';
 import type { Rect } from '@/lib/geometry';
 import { attachHotkeys, type Command } from '@/lib/hotkeys';
-import { modeLabel } from '@/lib/profile';
+import { modeCycle, modeLabel } from '@/lib/profile';
 import { planChannels } from '@/lib/speech/registry';
 import { quota } from '@/lib/speech/gemini-provider';
 import { loadCap, loadProfile, loadTier } from '@/lib/storage';
 import { hydrateStore, useStore } from '@/lib/store';
-import { LANG_NAMES } from '@/lib/types';
+import { LANG_NAMES, type Lang, type LangMode, type Speaker } from '@/lib/types';
 import { uid } from '@/lib/speech/types';
 import { initUiPrefs, useT, useTheme, useUiLang } from '@/lib/ui-prefs';
 
@@ -110,6 +110,22 @@ export default function ControlPage() {
 
   // --- команды ------------------------------------------------------------
 
+  /**
+   * Перебрать язык канала и подтянуть под него живое распознавание.
+   * Одна процедура на микрофон и на зал: разница между каналами вся
+   * внутри провайдера, а не здесь.
+   */
+  const cycleChannel = useCallback(
+    (ch: Speaker) => {
+      const st = useStore.getState();
+      const next = st.cycleMode(ch);
+      if (!next) return st.toast_(t('langFixedNeedsOne'), 'warn');
+      void channels.applyMode(ch);
+      st.toast_(`${t(ch === 'presenter' ? 'me' : 'room')} ${t('channelNowIs')} ${modeLabel(next)}`);
+    },
+    [channels, t],
+  );
+
   const runCommand = useCallback(
     (c: Command) => {
       const st = useStore.getState();
@@ -120,14 +136,7 @@ export default function ControlPage() {
         case 'last': st.goto(st.slideCount - 1); break;
         case 'mode': void (channels.listening ? channels.stopAll() : channels.startAll()); break;
         case 'captions': st.setCaptions({ visible: !st.captions.visible }); break;
-        case 'lang': {
-          const next = st.cyclePresenterLang();
-          if (next) {
-            channels.setPresenterLanguage(next);
-            st.toast_(`${t('micNowIs')} ${LANG_NAMES[next]}`);
-          } else st.toast_(t('nothingToSwitch'), 'warn');
-          break;
-        }
+        case 'lang': cycleChannel('presenter'); break;
         case 'gemini':
           void channels.swapPresenter().then((next) => {
             if (next) st.toast_(`${t('micEngine')}: ${next}`);
@@ -143,7 +152,7 @@ export default function ControlPage() {
           break;
       }
     },
-    [channels, t],
+    [channels, cycleChannel, t],
   );
 
   useEffect(() => attachHotkeys(runCommand), [runCommand]);
@@ -224,6 +233,7 @@ export default function ControlPage() {
                 color={s.shapeColor}
                 onAdd={(shape) => s.addShape({ ...shape, id: uid('s') })}
                 onRemove={s.removeShape}
+                onMove={s.moveShape}
                 onUndo={s.undoShape}
               />
               <AnnotationTools />
@@ -250,36 +260,34 @@ export default function ControlPage() {
           style={{ width: `${LAYOUT.ASIDE_FRACTION * 100}%`, minWidth: LAYOUT.MIN_ASIDE_PX }}
         >
           <div className="toolbar">
-            <div className="flex gap-1">
-              <button
-                onClick={() => void (channels.listening ? channels.stopAll() : channels.startAll())}
-                className={`btn flex-1 py-2 ${channels.listening ? 'btn-stop' : 'btn-go'}`}
-                title={channels.listening ? t('hintStop') : t('hintListen')}
-              >
-                {channels.listening ? t('stopListening') : t('startListening')}
-              </button>
+            <button
+              onClick={() => void (channels.listening ? channels.stopAll() : channels.startAll())}
+              className={`btn w-full py-2 ${channels.listening ? 'btn-stop' : 'btn-go'}`}
+              title={channels.listening ? t('hintStop') : t('hintListen')}
+            >
+              {channels.listening ? t('stopListening') : t('startListening')}
+            </button>
 
-              {/* Язык микрофона — сразу за стартом: во время речи это
-                  единственная кнопка, которую приходится нажимать. */}
-              <button
-                onClick={() => runCommand('lang')}
-                disabled={s.profile.presenterMode.kind !== 'pin'}
-                className="btn py-2 font-bold"
-                title={t('hintMicLang')}
-              >
-                {modeLabel(s.profile.presenterMode)}
-              </button>
-
-              <span className="flex items-center gap-2 rounded border border-line px-2 text-[10px] uppercase text-dim">
-                <span className="flex items-center gap-1" title={`Microphone: ${s.presenterStatus}`}>
-                  <StatusDot status={s.presenterStatus} />
-                  {t('me')}
-                </span>
-                <span className="flex items-center gap-1" title={`Meeting audio: ${s.audienceStatus}`}>
-                  <StatusDot status={s.audienceStatus} />
-                  {t('room')}
-                </span>
-              </span>
+            {/* Кто говорит и на каком языке — сразу под стартом и в одном
+                элементе: лампочка канала и его язык это один вопрос, а
+                разнесённые точка и кнопка заставляли связывать их глазами. */}
+            <div className="mt-1 flex gap-1">
+              <ChannelChip
+                label={t('me')}
+                status={s.presenterStatus}
+                mode={s.profile.presenterMode}
+                langs={s.profile.presenterLangs}
+                hint={t('hintMicLang')}
+                onCycle={() => cycleChannel('presenter')}
+              />
+              <ChannelChip
+                label={t('room')}
+                status={s.audienceStatus}
+                mode={s.profile.audienceMode}
+                langs={s.profile.audienceLangs}
+                hint={t('hintRoomLang')}
+                onCycle={() => cycleChannel('audience')}
+              />
             </div>
 
             <div className="mt-1 flex items-center gap-1">
@@ -347,6 +355,35 @@ function Spend({ used }: { used: number }) {
     >
       {usd(quota.spentUsd())} · {used}/{quota.cap}
     </span>
+  );
+}
+
+/**
+ * Канал: лампочка состояния, чей он и на каком языке слушается.
+ * Нажатие перебирает языки профиля и AUTO — если перебирать есть что.
+ */
+function ChannelChip({
+  label,
+  status,
+  mode,
+  langs,
+  hint,
+  onCycle,
+}: {
+  label: string;
+  status: string;
+  mode: LangMode;
+  langs: Lang[];
+  hint: string;
+  onCycle: () => void;
+}) {
+  const fixed = modeCycle(langs).length < 2;
+  return (
+    <button onClick={onCycle} disabled={fixed} className="chip" title={hint}>
+      <StatusDot status={status} />
+      <span className="text-[10px] uppercase text-dim">{label}</span>
+      <span className="ml-auto font-mono text-xs font-bold">{modeLabel(mode)}</span>
+    </button>
   );
 }
 

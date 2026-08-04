@@ -1,0 +1,598 @@
+<!doctype html>
+<html lang="pt">
+<head>
+<meta charset="utf-8">
+<title>Resolver um problema real com IA — um exemplo prático</title>
+<style>
+  /* Слайды 1280×720 (16:9). Печать в PDF: Ctrl+P → Save as PDF,
+     поля None, фоновая графика включена. Готовый PDF грузится
+     в само приложение, о котором доклад. */
+  @page { size: 1280px 720px; margin: 0; }
+
+  :root {
+    --bg:      #0d1117;
+    --panel:   #161b25;
+    --line:    #262e3d;
+    --fg:      #e9ecf3;
+    --dim:     #8b93a6;
+    --accent:  #62a0ff;
+    --ok:      #43d39e;
+    --warn:    #e8b64c;
+    --bad:     #f2726f;
+    --mono: ui-monospace, "Cascadia Code", "SF Mono", Consolas, monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #05070b;
+    color: var(--fg);
+    font-family: system-ui, -apple-system, "Segoe UI", Inter, sans-serif;
+    font-size: 20px;
+    line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .slide {
+    position: relative;
+    width: 1280px;
+    height: 720px;
+    padding: 62px 76px 66px;
+    background: var(--bg);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    page-break-after: always;
+    break-after: page;
+  }
+  .slide + .slide { margin-top: 26px; }
+  @media print { .slide + .slide { margin-top: 0; } }
+
+  /* Номер и тонкая линия сверху — ориентир для докладчика */
+  .slide::before {
+    content: "";
+    position: absolute; inset: 0 0 auto 0; height: 3px;
+    background: linear-gradient(90deg, var(--accent), transparent 62%);
+  }
+  .num {
+    position: absolute; right: 40px; bottom: 26px;
+    font: 600 13px var(--mono); color: #39415280; letter-spacing: .06em;
+  }
+
+  h1 { font-size: 60px; line-height: 1.08; font-weight: 700; letter-spacing: -.02em; }
+  /* Отбивка снизу обязательна: на плотных слайдах тело центрируется
+     и шапка таблицы иначе прилипает к строчным выносным заголовка. */
+  h2 { font-size: 40px; line-height: 1.14; font-weight: 700; letter-spacing: -.015em; margin-bottom: 18px; }
+  .kicker {
+    font: 600 14px/1 var(--mono);
+    color: var(--accent);
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    margin-bottom: 18px;
+  }
+  .lede { font-size: 25px; color: var(--dim); margin-top: 14px; max-width: 62ch; }
+  /* Тело оптически центрируется в остатке под заголовком. Иначе контент
+     виснет вверху, а нижняя треть слайда стоит пустой — на проекторе
+     это читается как незаконченная вёрстка. */
+  .body {
+    margin-top: 26px; flex: 1; min-height: 0;
+    display: flex; flex-direction: column; justify-content: center; gap: 0;
+  }
+
+  ul { list-style: none; }
+  li { position: relative; padding-left: 26px; margin-bottom: 13px; max-width: 82ch; }
+  li::before {
+    content: ""; position: absolute; left: 4px; top: .62em;
+    width: 7px; height: 7px; border-radius: 2px; background: var(--accent);
+  }
+  li.no::before { background: var(--bad); }
+  li.yes::before { background: var(--ok); }
+  b, strong { color: #fff; font-weight: 650; }
+  .q { color: var(--dim); }
+
+  table { border-collapse: collapse; width: 100%; font-size: 18px; }
+  th, td { text-align: left; padding: 9px 14px 9px 0; vertical-align: top; border-bottom: 1px solid var(--line); }
+  th { color: var(--dim); font: 600 13px/1.3 var(--mono); text-transform: uppercase; letter-spacing: .08em; padding-bottom: 11px; }
+  td.mono, .mono { font-family: var(--mono); font-size: 17px; }
+  .ok { color: var(--ok); }  .bad { color: var(--bad); }  .warn { color: var(--warn); }
+
+  /* Пометка «использовано» — отдельным значком, а не цветом текста:
+     правило для <b> перекрашивает содержимое в белый, и цветовая
+     маркировка становится невидимой. */
+  .used   { color: var(--ok);  font-weight: 700; margin-right: 7px; }
+  .unused { color: #48506233; font-weight: 700; margin-right: 7px; }
+
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 34px; }
+  .cols3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; }
+  .card {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 12px; padding: 20px 22px;
+  }
+  .card h3 { font-size: 20px; margin-bottom: 8px; font-weight: 650; }
+  .card p { font-size: 17px; color: var(--dim); }
+
+  .big { font: 700 54px/1 var(--mono); letter-spacing: -.03em; }
+  .big.ok { color: var(--ok); } .big.bad { color: var(--bad); }
+  .unit { font-size: 17px; color: var(--dim); font-family: system-ui; letter-spacing: 0; }
+
+  .note {
+    border-left: 3px solid var(--warn);
+    background: #e8b64c12;
+    padding: 12px 18px; border-radius: 0 8px 8px 0;
+    font-size: 18px; color: #d8c294;
+  }
+
+  /* --- схемы --- */
+  .flow { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .node {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+    padding: 12px 16px; font-size: 17px; text-align: center; min-width: 96px;
+  }
+  .node.hl { border-color: var(--accent); background: #62a0ff14; }
+  .node.dead { border-color: #3a2a2a; color: #7a6a6a; }
+  .node small { display: block; color: var(--dim); font-size: 13px; margin-top: 3px; }
+  .arrow { color: #4a5468; font-size: 22px; }
+
+  .shared {
+    border: 2px dashed var(--accent); border-radius: 12px; padding: 14px;
+    position: relative;
+  }
+  .shared::after {
+    content: "partilhado no Teams";
+    position: absolute; top: -11px; left: 14px;
+    background: var(--bg); padding: 0 8px;
+    font: 600 12px var(--mono); color: var(--accent); letter-spacing: .08em;
+  }
+  .private {
+    border: 2px dashed #3d4658; border-radius: 12px; padding: 14px; position: relative;
+  }
+  .private::after {
+    content: "nunca partilhado";
+    position: absolute; top: -11px; left: 14px;
+    background: var(--bg); padding: 0 8px;
+    font: 600 12px var(--mono); color: var(--dim); letter-spacing: .08em;
+  }
+
+  .title-slide { justify-content: center; }
+  .title-slide .meta { margin-top: 40px; color: var(--dim); font-size: 19px; }
+</style>
+</head>
+<body>
+
+<!-- 1 ─────────────────────────────────────────────────────────── -->
+<section class="slide title-slide">
+  <div class="kicker">Um exemplo prático</div>
+  <h1>Apresentar para uma sala que<br>não partilha um único idioma.</h1>
+  <p class="lede">Aprender português a sério é a verdadeira resposta, e nisso sou
+     mais lento do que gostaria. Entretanto existe uma resposta de engenharia:
+     dar à sala legendas no idioma dela, e dar-me as perguntas no meu. Esta
+     apresentação é sobre <b>como</b> isto foi construído — mais do que sobre
+     o que faz.</p>
+  <div class="meta mono">Legendas ao vivo para reuniões · feito em dias, não meses · custo zero para funcionar</div>
+  <div class="num">01</div>
+</section>
+
+<!-- 2 ─────────────────────────────────────────────────────────── -->
+<section class="slide">
+  <div class="kicker">O problema</div>
+  <h2>Escrever funciona.<br>Falar é a parte difícil.</h2>
+  <div class="body">
+    <div class="cols">
+      <div>
+        <ul>
+          <li>A comunicação escrita entre programadores é em inglês, e isso funciona.</li>
+          <li>A fala ao vivo é <b>onde falha</b> — a começar por mim. O meu
+              português ainda está em construção, por isso numa reunião perco
+              as perguntas, não os diapositivos.</li>
+          <li>E não sou só eu: inglês à velocidade da fala não é igualmente
+              confortável para toda a gente na sala.</li>
+          <li>O Teams tem legendas ao vivo. Legendas <b>traduzidas</b> exigem
+              Premium, e toda a gente precisaria dele.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>A forma do problema</h3>
+        <p style="margin-bottom:14px">Uma apresentação é uma emissão <b>um-para-muitos</b> com uma cauda
+          de perguntas <b>muitos-para-um</b>. Essas duas direções têm requisitos
+          completamente diferentes — e isso acabou por ser a coisa mais
+          importante a reparar.</p>
+        <table>
+          <tr><td>Eu → sala</td><td class="mono">latência crítica</td></tr>
+          <tr><td>Sala → eu</td><td class="mono">exatidão crítica</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="num">02</div>
+</section>
+
+<!-- 3 ─────────────────────────────────────────────────────────── -->
+<section class="slide">
+  <div class="kicker">Porquê agora</div>
+  <h2>A mesma ideia, com dois anos de diferença</h2>
+  <div class="body">
+    <table>
+      <thead><tr><th style="width:23%"></th><th style="width:38%">Antes</th><th>Agora</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><b>Reconhecimento de fala</b></td>
+          <td class="q">Serviço pago na nuvem, chave de API, faturação à hora</td>
+          <td class="ok">Integrado no navegador. Grátis, sem limite.</td>
+        </tr>
+        <tr>
+          <td><b>Tradução</b></td>
+          <td class="q">API paga, ida e volta pela rede a cada frase</td>
+          <td class="ok">Corre <b>no dispositivo</b>. Sem rede, sem chave, sem quota.</td>
+        </tr>
+        <tr>
+          <td><b>Deteção de idioma</b></td>
+          <td class="q">Modelo especializado, afinação própria, falhas próprias</td>
+          <td class="ok">Uma frase no prompt.</td>
+        </tr>
+        <tr>
+          <td><b>Construí-lo</b></td>
+          <td class="q">Semanas de uma equipa. Nunca seria aprovado para o problema de uma pessoa.</td>
+          <td class="ok">Dias de uma pessoa. Sem precisar de aprovação.</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="note" style="margin-top:26px">
+      A mudança interessante é a última linha. <b>A economia mudou antes da
+      tecnologia.</b> Problemas que afetam uma pessoa nunca justificavam um
+      projeto. Agora justificam uma tarde — e por isso são resolvidos.
+    </div>
+  </div>
+  <div class="num">03</div>
+</section>
+
+<!-- 4 ─────────────────────────────────────────────────────────── -->
+<section class="slide">
+  <div class="kicker">Método</div>
+  <h2>Não perguntei a um modelo. Convoquei um conselho.</h2>
+  <div class="body">
+    <!-- Модели опрашиваются ПАРАЛЛЕЛЬНО, поэтому стоят столбиком.
+         В ряд они читались бы как последовательные шаги. -->
+    <div class="flow" style="margin:6px 0 30px">
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div class="node hl">Modelo A<small>plano #1 — bom</small></div>
+        <div class="node dead">Modelo B<small>plano #2 — muito fora</small></div>
+      </div>
+      <span class="arrow">→</span>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div class="node">Modelo C<small>critica o A</small></div>
+        <div class="node">Modelo D<small>critica o A</small></div>
+      </div>
+      <span class="arrow">→</span>
+      <div class="node hl" style="align-self:center">Modelo A<small>revê com as críticas</small></div>
+      <span class="arrow">→</span>
+      <div class="node hl" style="align-self:center">Especificação</div>
+    </div>
+    <div class="cols">
+      <div>
+        <ul>
+          <li>Fazer <b>a mesma pergunta a 2–4 modelos</b>, em separado. Barato e paralelo.</li>
+          <li>Escolher o melhor plano. Aqui o primeiro já era bom e o segundo
+              estava claramente errado — <b>o valor está nessa comparação</b>,
+              não na média.</li>
+          <li>Entregar o vencedor aos <b>outros como críticos</b>, não como autores.</li>
+          <li>Devolver as críticas <b>ao autor original</b>.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Isto já tem nome</h3>
+        <p>O <b>LLM Council</b> de Karpathy — consulta paralela, revisão por
+           pares, síntese. A variante que usei é o <b>conselho adversarial</b>:
+           os revisores são instruídos a encontrar falhas, não a concordar.</p>
+        <p style="margin-top:12px">Porque funciona: o ponto cego de um único modelo torna-se a resposta
+           final. Um crítico com outro ponto cego não partilha esse ponto cego.</p>
+      </div>
+    </div>
+  </div>
+  <div class="num">04</div>
+</section>
+
+<!-- 5 ─────────────────────────────────────────────────────────── -->
+<section class="slide">
+  <div class="kicker">Provas</div>
+  <h2>O que os críticos mudaram de facto</h2>
+  <div class="body">
+    <table>
+      <thead><tr><th style="width:34%">O primeiro plano dizia</th><th style="width:30%">O final diz</th><th>Porque mudou</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Azure Speech como motor</td>
+          <td class="ok">Nenhum serviço pago</td>
+          <td class="q">Exige cartão mesmo no plano gratuito. Mata a adoção pelos colegas.</td>
+        </tr>
+        <tr>
+          <td>Aceitar PPTX e converter com o LibreOffice</td>
+          <td class="ok">Apenas PDF</td>
+          <td class="q">Eliminou um servidor, um analisador de OOXML e uma classe inteira de erros de layout.</td>
+        </tr>
+        <tr>
+          <td>Reamostrador de áudio à mão + teste unitário</td>
+          <td class="ok">Um argumento do construtor</td>
+          <td class="q">O navegador já reamostra. Um dia de trabalho que não era preciso fazer.</td>
+        </tr>
+        <tr>
+          <td>Idiomas fixados no código</td>
+          <td class="ok">Um objeto de perfil</td>
+          <td class="q">«Os teus colegas têm outros idiomas.» Não tinha pensado nisso de todo.</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="note" style="margin-top:24px">
+      Todas estas mudanças <b>retiraram</b> trabalho. Os críticos não
+      acrescentaram funcionalidades — apagaram planos. É a coisa de maior valor
+      que um revisor pode fazer, e é exatamente o que um único modelo
+      entusiasmado não faz a si próprio.
+    </div>
+  </div>
+  <div class="num">05</div>
+</section>
+
+<!-- 6 ─────────────────────────────────────────────────────────── -->
+<section class="slide">
+  <div class="kicker">Método</div>
+  <h2>A especificação é o artefacto. O código vem a jusante.</h2>
+  <div class="body">
+    <div class="cols">
+      <div>
+        <ul>
+          <li>Escrevi e reescrevi uma <b>especificação</b>, não prompts.
+              Requisitos, critérios de aceitação, não-objetivos explícitos.</li>
+          <li>Cada reversão do diapositivo anterior está <b>registada nela com o
+              motivo</b>. Daqui a seis semanas não volto a discutir o Azure.</li>
+          <li>A indústria chama-lhe <b>spec-driven development</b>, e 2026 foi o
+              ano em que todas as ferramentas de agentes lançaram uma versão disto.</li>
+          <li>O motivo apontado bate certo com a minha experiência: os agentes
+              escrevem bem código e <b>adivinham mal a intenção</b>. O desvio é o
+              modo de falha, não a sintaxe.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>O que fez a diferença</h3>
+        <p><b>Não-objetivos.</b> «Sem PPTX. Sem contas. Sem servidor.» Escritos,
+           deixam de voltar.</p>
+        <p style="margin-top:12px"><b>Critérios de aceitação como testes.</b>
+           «As transcrições não contêm nenhuma frase no outro idioma» é
+           verificável. «Boa qualidade» não é.</p>
+        <p style="margin-top:12px"><b>Um registo de decisões.</b> A especificação acaba com uma tabela
+           do que foi revertido e porquê — a página mais relida.</p>
+      </div>
+    </div>
+  </div>
+  <div class="num">06</div>
+</section>
+
+<!-- 7 ─────────────────────────────────────────────────────────── -->
+<section class="slide">
+  <div class="kicker">Método</div>
+  <h2>Medir antes de construir. Uma página de código.</h2>
+  <div class="body">
+    <p class="lede" style="margin-top:0;margin-bottom:22px">Antes de escrever a aplicação escrevi um único ficheiro HTML que
+       testava cada pressuposto no portátil real. Demorou minutos e mudou a
+       arquitetura.</p>
+    <div class="cols3">
+      <div class="card">
+        <div class="big ok">147<span class="unit"> ms</span></div>
+        <p style="margin-top:8px">Reconhecimento de fala do navegador, do fim da frase ao texto
+           final. Eu tinha orçamentado <b>1000&nbsp;ms</b>.</p>
+      </div>
+      <div class="card">
+        <div class="big bad">~600</div>
+        <p style="margin-top:8px">Pedidos a um modelo na nuvem para uma apresentação de 2 horas, ao
+           meu ritmo real de fala. Quase de certeza acima da quota diária gratuita.</p>
+      </div>
+      <div class="card">
+        <div class="big ok">0</div>
+        <p style="margin-top:8px">Drivers, servidores e contas necessários — os três riscos para os
+           quais eu tinha planeado mitigações afinal não existiam.</p>
+      </div>
+    </div>
+    <div class="note" style="margin-top:26px">
+      Os dois números apontavam no mesmo sentido e <b>inverteram a minha
+      opção por omissão</b>. Eu tinha planeado usar o modelo na nuvem para a
+      minha própria fala. A medição disse: usar o navegador e guardar a nuvem
+      para a audiência. Vinte vezes mais rápido, e grátis.
+    </div>
+  </div>
+  <div class="num">07</div>
+</section>
+
+<!-- 8 ─────────────────────────────────────────────────────────── -->
+<section class="slide">
+  <div class="kicker">O produto · demonstração ao vivo</div>
+  <h2>Uma janela. A sala acompanha a leitura.</h2>
+  <div class="body">
+    <div class="cols" style="grid-template-columns: 1.35fr 1fr; align-items:start">
+      <div class="shared">
+        <div style="display:grid;grid-template-columns:1.6fr 1fr;gap:10px">
+          <div style="background:#0a0d13;border-radius:8px;padding:14px;min-height:168px;display:flex;align-items:flex-end">
+            <span style="color:#5b6478;font-size:15px" class="mono">diapositivo + anotações desenhadas ao vivo</span>
+          </div>
+          <div style="background:#0a0d13;border-radius:8px;padding:12px;min-height:168px;font-size:14px;line-height:1.65">
+            <div class="mono" style="color:#5b6478;margin-bottom:8px">conversa</div>
+            <div class="q">Executamos o Kubernetes…</div>
+            <div class="q" style="margin-top:6px">Desculpem, uma pergunta…</div>
+          </div>
+        </div>
+        <div style="background:#000000aa;border-radius:6px;padding:10px 12px;font-size:19px;font-weight:600;margin-top:10px;text-align:center">
+          Executamos o Kubernetes em três regiões.
+        </div>
+      </div>
+      <div class="card">
+        <h3>Este diapositivo dizia «duas janelas»</h3>
+        <p>O primeiro desenho tinha uma segunda janela privada: o registo era
+           meu, a sala via apenas o diapositivo.</p>
+        <p style="margin-top:12px">Depois veio a pergunta óbvia — <b>para quem é o registo?</b> É para
+           as pessoas que precisam de ler o que acabei de dizer. Assim, a janela
+           privada ficou sem nada para guardar, e foi apagada.</p>
+        <p style="margin-top:12px">Está tudo numa única imagem partilhada: diapositivo, legendas,
+           conversa. <b>Sem bot, sem Premium, nada para instalar.</b></p>
+      </div>
+    </div>
+  </div>
+  <div class="num">08</div>
+</section>
+
+<!-- 9 ─────────────────────────────────────────────────────────── -->
+<section class="slide">
+  <div class="kicker">Arquitetura</div>
+  <h2>Dois canais, dois motores, um contrato</h2>
+  <div class="body">
+    <div class="flow" style="margin-bottom:26px">
+      <div class="node">O meu micro<small>en / ru / pt</small></div>
+      <span class="arrow">→</span>
+      <div class="node hl">Fala no navegador<small>tradução no dispositivo</small></div>
+      <span class="arrow">→</span>
+      <div class="node hl" style="min-width:150px">SpeechProvider<small>uma interface</small></div>
+      <span class="arrow">→</span>
+      <div class="node">Legendas<small>idioma da audiência</small></div>
+    </div>
+    <div class="flow" style="margin-bottom:28px">
+      <div class="node">Áudio da sala<small>pt / en</small></div>
+      <span class="arrow">→</span>
+      <div class="node hl">Modelo na nuvem<small>deteta o idioma</small></div>
+      <span class="arrow">→</span>
+      <div class="node hl" style="min-width:150px">SpeechProvider<small>a mesma interface</small></div>
+      <span class="arrow">→</span>
+      <div class="node">Duas transcrições</div>
+    </div>
+    <table>
+      <thead><tr><th style="width:26%">Camada</th><th style="width:32%">Escolha</th><th>Porquê essa</th></tr></thead>
+      <tbody>
+        <tr><td>Diapositivos</td><td class="mono">pdf.js em canvas</td><td class="q">Única forma fiável de desenhar um diapositivo fiel à impressão</td></tr>
+        <tr><td>Estado</td><td class="mono">Uma store Zustand</td><td class="q">Diapositivos, registo e anotações num só sítio — sem passar props em cadeia</td></tr>
+        <tr><td>Anotações</td><td class="mono">SVG sobre canvas</td><td class="q">O PDF nunca é alterado. O navegador trata da deteção de cliques.</td></tr>
+        <tr><td>Armazenamento</td><td class="mono">IndexedDB + localStorage</td><td class="q">O registo sobrevive a um F5 acidental; nada sai da máquina</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="num">09</div>
+</section>
+
+<!-- 10 ────────────────────────────────────────────────────────── -->
+<section class="slide">
+  <div class="kicker">A decisão que moldou tudo</div>
+  <h2>Deixar o utilizador escolher, e deixar a escolha selecionar o motor</h2>
+  <div class="body">
+    <table>
+      <thead><tr><th style="width:30%"></th>
+        <th style="width:35%">Fixo — eu digo qual o idioma</th>
+        <th>Auto — o modelo deteta-o</th></tr></thead>
+      <tbody>
+        <tr><td><b>Atraso da legenda</b></td><td class="ok mono">~0.15 s</td><td class="warn mono">~3 s</td></tr>
+        <tr><td><b>Texto enquanto falo</b></td><td class="ok">sim</td><td class="q">não — a frase inteira de uma vez</td></tr>
+        <tr><td><b>Limites diários</b></td><td class="ok">nenhum</td><td class="warn">quota partilhada</td></tr>
+        <tr><td><b>Chave de API</b></td><td class="ok">não é precisa</td><td class="q">obrigatória</td></tr>
+        <tr><td><b>Tenho de me lembrar</b></td><td class="q">premir uma tecla antes de mudar</td><td class="ok">de nada</td></tr>
+      </tbody>
+    </table>
+    <div class="cols" style="margin-top:26px">
+      <div class="note" style="border-color:var(--ok);background:#43d39e12;color:#a9e3cb">
+        <b>Micro fixo, sala em auto.</b> Eu sei em que idioma vou falar a
+        seguir. Não posso saber em que idioma vem a próxima pergunta.
+      </div>
+      <div class="card">
+        <p>A definição não é cosmética — ela <b>seleciona o motor</b>. A
+           aplicação nunca pergunta «qual o fornecedor?»; faz uma pergunta a que
+           o utilizador consegue responder, e deduz o resto.</p>
+      </div>
+    </div>
+  </div>
+  <div class="num">10</div>
+</section>
+
+<!-- 11 ────────────────────────────────────────────────────────── -->
+<section class="slide">
+  <div class="kicker">A caixa de ferramentas</div>
+  <h2>Que técnica da moda, e quando</h2>
+  <div class="body">
+    <table style="font-size:15.5px">
+      <thead><tr>
+        <th style="width:19%">Técnica</th><th style="width:26%">O que é na realidade</th>
+        <th style="width:27%">Vale a pena quando</th><th>É peso morto quando</th></tr></thead>
+      <tbody>
+        <!-- Галочка отдельным элементом: правило для <b> перекрасило бы
+             цветной текст в белый, и пометка стала бы невидимой. -->
+        <tr><td><span class="used">✓</span><b>Conselho de LLMs</b></td>
+          <td>Vários modelos respondem e criticam-se uns aos outros</td>
+          <td>Arquitetura e escolhas irreversíveis</td>
+          <td class="q">Código de rotina que basta ler</td></tr>
+        <tr><td><span class="used">✓</span><b>Spec-driven</b></td>
+          <td>Uma especificação versionada é a fonte da verdade; o código vem dela</td>
+          <td>Tudo o que ainda vai mudar no mês seguinte</td>
+          <td class="q">Um script que se corre uma vez</td></tr>
+        <tr><td><span class="used">✓</span><b>Bancada de desenvolvimento</b></td>
+          <td>Fornecedor simulado + uma rota que repete um guião gravado</td>
+          <td>A entrada é uma pessoa ao vivo, hardware ou uma API paga</td>
+          <td class="q">Funções puras — basta chamá-las</td></tr>
+        <tr><td><span class="used">✓</span><b>Sondar primeiro</b></td>
+          <td>Página descartável que mede pressupostos na máquina real</td>
+          <td>Está prestes a desenhar em torno de um número adivinhado</td>
+          <td class="q">O número está documentado e é estável</td></tr>
+        <tr><td><span class="unused">·</span><b>Avaliações</b></td>
+          <td>Conjunto de testes pontuado que apanha regressões</td>
+          <td>A saída do modelo é o produto e é lançada repetidamente</td>
+          <td class="q">Ferramenta pontual, com alguém no ciclo em cada execução</td></tr>
+        <tr><td><span class="unused">·</span><b>Assistente de voz</b></td>
+          <td>Sessão fala-para-fala sobre WebRTC, abaixo do segundo</td>
+          <td>Mãos e olhos ocupados — a conduzir, a apresentar, a operar</td>
+          <td class="q">Escrever é mais rápido e silencioso — quase sempre</td></tr>
+      </tbody>
+    </table>
+    <div class="note" style="margin-top:10px;font-size:16px">
+      <span class="used">✓</span> marca o que este projeto usou de facto. O
+      fornecedor simulado é o que eu defenderia com mais força: <b>sem ele, cada
+      alteração de interface exige alguém a falar ao microfone.</b>
+    </div>
+  </div>
+  <div class="num">11</div>
+</section>
+
+<!-- 12 ────────────────────────────────────────────────────────── -->
+<section class="slide">
+  <div class="kicker">Omissão honesta · o que muda a seguir</div>
+  <h2>Orquestração de agentes: não a usei</h2>
+  <div class="body">
+    <div class="cols">
+      <div>
+        <p style="color:var(--dim);margin-bottom:16px">Os padrões de 2026 já estão assentes — supervisor, pipeline,
+           distribuição paralela, encaminhador, hierárquico, avaliador-otimizador.
+           Não usei nenhum deles, e penso que foi acertado.</p>
+        <ul>
+          <li><b>Porque não:</b> uma aplicação, um programador, trabalho quase todo
+              sequencial. A orquestração compra paralelismo que eu não tinha
+              para gastar.</li>
+          <li><b>Quando compensa:</b> uma alteração mecânica em muitos ficheiros —
+              migrações, auditorias, varrimentos. Distribuição sob um supervisor.</li>
+          <li><b>Quando compensará aqui, mais tarde:</b> a fase de revisão. Vários
+              críticos em dimensões diferentes, a correr ao mesmo tempo, é
+              exatamente o meu conselho — só que automatizado em vez de
+              copiado e colado.</li>
+        </ul>
+      </div>
+      <div>
+        <h3 style="font-size:22px;margin-bottom:14px">O que melhora à medida que os modelos melhoram</h3>
+        <ul style="font-size:18px">
+          <li>A tradução no dispositivo melhora → o caminho gratuito deixa de ser
+              o compromisso e passa a ser a opção por omissão.</li>
+          <li>Os modelos de fala em streaming amadurecem → deteção e baixa latência
+              deixam de ser um compromisso, e a minha decisão central de desenho
+              <b>evapora-se</b>.</li>
+          <li>Tokens de áudio mais baratos → o argumento da quota desaparece.</li>
+          <li>Contexto mais longo → a reunião inteira resumida, não apenas transcrita.</li>
+        </ul>
+        <div class="note" style="margin-top:18px;font-size:17px">
+          A interface de fornecedor existe para que <b>nada disto obrigue a
+          reescrever a aplicação</b> — basta acrescentar um ficheiro.
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="num">12</div>
+</section>
+
+</body>
+</html>

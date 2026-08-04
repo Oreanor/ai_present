@@ -85,7 +85,9 @@ export function arrowPath(s: Shape, w: number, h: number): string {
   const ny = ux;
 
   const head = Math.min(len * 0.38, Math.max(18, len * 0.22));
-  const shaft = Math.max(5, Math.min(head * 0.42, len * 0.1));
+  // Половина толщины хвоста. Наконечник несёт всё указание, а толстый
+  // хвост закрывает то, на что показывают, — поэтому он заметно тоньше.
+  const shaft = Math.max(2.5, Math.min(head * 0.21, len * 0.05));
   const wing = head * 0.55;
   const bx = x2 - ux * head;
   const by = y2 - uy * head;
