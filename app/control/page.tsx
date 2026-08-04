@@ -17,7 +17,7 @@ import { SlideCanvas } from '@/components/SlideCanvas';
 import { SlideCaptions } from '@/components/SlideCaptions';
 import { SlideOverview } from '@/components/SlideOverview';
 import { KEY_TIERS, SetupWizard } from '@/components/SetupWizard';
-import { useChannels } from '@/hooks/useChannels';
+import { useChannels, type DeckVoice } from '@/hooks/useChannels';
 import { useDeck } from '@/hooks/useDeck';
 import { useElementSize } from '@/hooks/useElementSize';
 import { getBus, type BusMessage } from '@/lib/bus';
@@ -92,8 +92,16 @@ export default function ControlPage() {
   const bus = useRef(getBus());
   const stageRef = useRef<HTMLDivElement>(null);
 
-  const { variants, primary, terms, recent, load, openRecent, forget } = useDeck();
-  const channels = useChannels(terms);
+  const { variants, primary, terms, recent, load, openRecent, closeDeck, forget } = useDeck();
+  // Голос ходит к колодам через ref: список недавних меняется, а пересоздавать
+  // из-за этого запуск каналов незачем — ref всегда указывает на свежее.
+  const deckVoice = useRef<DeckVoice | null>(null);
+  deckVoice.current = {
+    openNth: (n) => void openRecent(recent[n - 1].docId),
+    close: closeDeck,
+    count: () => recent.length,
+  };
+  const channels = useChannels(terms, deckVoice);
   const stage = useElementSize(stageRef, [ready, wizard, primary]);
 
   // --- инициализация ------------------------------------------------------

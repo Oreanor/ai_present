@@ -76,7 +76,7 @@ export function pickText(texts: Partial<Record<Lang, string>>, prefs: Lang[]): s
  */
 export type ProfileProblem = { field: string; key: ProblemKey; fatal: boolean };
 
-export type ProblemKey = 'needPresenterLang' | 'needAudienceLang' | 'autoWithOneLang' | 'autoOnMicIsExpensive';
+export type ProblemKey = 'needPresenterLang' | 'needAudienceLang' | 'autoWithOneLang';
 
 export function validateProfile(p: MeetingProfile): ProfileProblem[] {
   const out: ProfileProblem[] = [];
@@ -88,9 +88,6 @@ export function validateProfile(p: MeetingProfile): ProfileProblem[] {
   // auto на одном кандидате — бессмысленная трата лимита: определять нечего.
   if (p.presenterMode.kind === 'auto' && p.presenterLangs.length < 2) add('presenterMode', 'autoWithOneLang', false);
   if (p.audienceMode.kind === 'auto' && p.audienceLangs.length < 2) add('audienceMode', 'autoWithOneLang', false);
-
-  // Микрофон в auto — самый дорогой режим: ведущий говорит почти непрерывно.
-  if (p.presenterMode.kind === 'auto') add('presenterMode', 'autoOnMicIsExpensive', false);
 
   return out;
 }

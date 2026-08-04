@@ -108,6 +108,24 @@ export function useDeck() {
     [load],
   );
 
+  /**
+   * Закрыть колоду и вернуться в галерею. Отрисовщики рвём здесь же:
+   * иначе закрытая колода продолжает держать страницы pdf.js, а ради
+   * этого закрытие и делают.
+   *
+   * Окну показа об этом не сообщаем. Оно берёт из хранилища последний
+   * файл, а не текущий docId, и «deck:changed» заставил бы его молча
+   * перезагрузить ту же колоду — то есть ничего не закрыть.
+   */
+  const closeDeck = useCallback(() => {
+    for (const v of Object.values(live.current)) v?.renderer.destroy();
+    live.current = {};
+    setVariants({});
+    setPrimary(null);
+    terms.current = [];
+    useStore.getState().clearDeck();
+  }, []);
+
   const forget = useCallback(
     async (docId: string) => {
       await forgetDeck(docId);
@@ -124,5 +142,5 @@ export function useDeck() {
     [],
   );
 
-  return { variants, primary, terms, recent, load, openRecent, forget };
+  return { variants, primary, terms, recent, load, openRecent, closeDeck, forget };
 }

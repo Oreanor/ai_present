@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { download, exportAll, flaggedMarkdown, fullMarkdown, transcriptMarkdown } from '@/lib/export';
+import { download, exportAll, fullMarkdown, transcriptMarkdown } from '@/lib/export';
 import { presenterLangOf, requiredPairs } from '@/lib/profile';
 import { commandHelp } from '@/lib/voice-commands';
 import { getTranslator, pairAvailability } from '@/lib/speech/translator';
@@ -70,12 +70,6 @@ export function ControlMenu({
           >
             {t('transcriptIn')} · {LANG_NAMES[shown]}
           </button>
-          <button
-            className="menu-item"
-            onClick={() => download(`follow-up-${shown}.md`, flaggedMarkdown(state.entries, shown))}
-          >
-            {t('flaggedOnly')} · {LANG_NAMES[shown]}
-          </button>
           <button className="menu-item" onClick={() => exportAll(state.entries, state.profile)}>
             {t('perLanguage')}
           </button>
@@ -88,40 +82,29 @@ export function ControlMenu({
         </Group>
 
         <Group label={t('appearance')}>
-          <div className="flex gap-1">
-            {THEMES.map((v) => (
-              <button
-                key={v.id}
-                onClick={() => setTheme(v.id)}
-                className={`btn btn-sm flex-1 ${theme === v.id ? 'btn-on' : ''}`}
-              >
-                {t(v.key)}
-              </button>
-            ))}
-          </div>
-        </Group>
-
-        {/* Язык КНОПОК, не язык встречи. Их легко перепутать, поэтому
-            блоки разные и подписи разные. */}
-        <Group label={t('interfaceLanguage')}>
-          <div className="flex gap-1">
-            {UI_LANGS.map((v) => (
-              <button
-                key={v.id}
-                onClick={() => setUiLang(v.id)}
-                className={`btn btn-sm flex-1 ${uiLang === v.id ? 'btn-on' : ''}`}
-              >
-                {v.label}
-              </button>
-            ))}
-          </div>
+          <InlineChoice
+            label={t('theme')}
+            value={theme}
+            options={THEMES.map((v) => ({ id: v.id, label: t(v.key) }))}
+            onPick={setTheme}
+          />
+          {/* Язык КНОПОК, не язык встречи. Их легко перепутать, поэтому
+              подписи у строк разные и явные. */}
+          <InlineChoice
+            label={t('interfaceLanguage')}
+            value={uiLang}
+            options={UI_LANGS.map((v) => ({ id: v.id, label: v.label }))}
+            onPick={setUiLang}
+          />
         </Group>
 
         <Group label={t('voiceCommands')}>
-          {commandHelp(presenterLangOf(state.profile)).map((c) => (
-            <div key={c.phrase} className="flex justify-between gap-2 px-2 py-0.5 text-[11px]">
-              <span className="font-mono text-accent">{c.phrase}</span>
-              <span className="text-dim">{t(c.label)}</span>
+          {commandHelp(presenterLangOf(state.profile), { deckOpen: state.docId !== '' }).map((c) => (
+            // Фразу не переносим: «мне английский» ломалось на две строки и
+            // читалось как две разных команды. Переносится пусть подпись.
+            <div key={c.phrase} className="flex justify-between gap-3 px-2 py-0.5 text-[11px]">
+              <span className="shrink-0 whitespace-nowrap font-mono text-accent">{c.phrase}</span>
+              <span className="text-right text-dim">{t(c.label)}</span>
             </div>
           ))}
           <p className="px-2 pt-1 text-[10px] leading-snug text-dim">{t('voiceLangNote')}</p>
@@ -194,6 +177,41 @@ function PackList() {
         );
       })}
     </Group>
+  );
+}
+
+/**
+ * Выбор из двух-трёх вариантов одной строкой: подпись слева, варианты
+ * справа. Кнопками во всю ширину с заливкой акцентом это занимало по два
+ * ряда на каждую мелочь и кричало громче того, ради чего сюда заходят.
+ * Выбранное отмечено цветом и насыщенностью — этого хватает.
+ */
+function InlineChoice<T extends string>({
+  label,
+  value,
+  options,
+  onPick,
+}: {
+  label: string;
+  value: T;
+  options: { id: T; label: string }[];
+  onPick: (id: T) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3 px-2 py-1 text-[11px]">
+      <span className="text-dim">{label}</span>
+      <div className="flex shrink-0 gap-3">
+        {options.map((o) => (
+          <button
+            key={o.id}
+            onClick={() => onPick(o.id)}
+            className={o.id === value ? 'font-semibold text-accent' : 'text-dim hover:text-fg'}
+          >
+            {o.label}
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }
 

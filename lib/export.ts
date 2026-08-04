@@ -57,18 +57,6 @@ export function fullMarkdown(entries: Entry[], profile: MeetingProfile): string 
   return lines.join('\n');
 }
 
-/** Только помеченные — список вопросов для follow-up. */
-export function flaggedMarkdown(entries: Entry[], lang: Lang): string {
-  const flagged = entries.filter((e) => e.isFinal && e.flagged);
-  const lines = ['# Follow-up items', ''];
-  if (!flagged.length) lines.push('_Nothing was flagged._');
-  for (const e of flagged) {
-    const who = e.speaker === 'presenter' ? 'Presenter' : 'Audience';
-    lines.push(`- \`${stamp(e.ts)}\` (slide ${e.slideIndex + 1}, ${who}) ${e.texts[lang] ?? e.origText}`);
-  }
-  return lines.join('\n') + '\n';
-}
-
 export function download(filename: string, content: string): void {
   const blob = new Blob([content], { type: 'text/markdown;charset=utf-8' });
   const url = URL.createObjectURL(blob);

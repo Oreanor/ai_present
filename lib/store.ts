@@ -79,6 +79,7 @@ type State = {
   setDeck(docId: string, count: number, aspect: number, langs: Lang[]): void;
   goto(index: number): void;
   setOverview(on: boolean): void;
+  clearDeck(): void;
   apologise(lang: Lang): void;
   move(delta: number): void;
 
@@ -165,6 +166,16 @@ export const useStore = create<State>((set, get) => ({
     const { slideCount } = get();
     if (slideCount === 0) return;
     set({ slideIndex: Math.max(0, Math.min(slideCount - 1, index)) });
+  },
+
+  /**
+   * Закрыть колоду и вернуться в галерею. Лог при этом остаётся: встреча
+   * идёт дальше, и стенограмма к колоде не привязана. Разметка тоже
+   * никуда не девается — она лежит в хранилище под docId и вернётся, если
+   * колоду открыть заново.
+   */
+  clearDeck() {
+    set({ docId: '', slideCount: 0, slideIndex: 0, deckLangs: [], overview: false, annotations: {} });
   },
 
   setOverview(on) {

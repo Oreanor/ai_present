@@ -9,17 +9,72 @@ import type { SpeechProvider } from '@/lib/speech/types';
 import { useStore } from '@/lib/store';
 import type { Speaker } from '@/lib/types';
 
+/**
+ * Что голос умеет делать с колодами. Живёт снаружи: колоды держит useDeck,
+ * и тянуть его сюда значило бы связать распознавание с разбором PDF.
+ */
+export type DeckVoice = {
+  /** Открыть N-ю из галереи недавних, считая с единицы. */
+  openNth(n: number): void;
+  close(): void;
+  /** Сколько их там — чтобы не открывать десятую из трёх молча. */
+  count(): number;
+};
+
 /** Исполнение голосовой команды. Обзор закрывается сам, когда просят
  *  конкретный слайд: раз назвали номер — хотят его, а не список. */
-function runVoiceCommand(cmd: VoiceCommand): void {
+function runVoiceCommand(
+  cmd: VoiceCommand,
+  deck: DeckVoice | null,
+  applyMode: (who: Speaker) => void,
+): void {
   const st = useStore.getState();
   switch (cmd.kind) {
+    case 'channel': {
+      const p = st.profile;
+      const langs = cmd.who === 'presenter' ? p.presenterLangs : p.audienceLangs;
+      const name = cmd.who === 'presenter' ? 'Microphone' : 'Room';
+
+      // Приколоть можно только к языку, который в профиле есть: иначе
+      // профиль становится негодным, и normalizeModes молча вернёт его
+      // обратно — команда бы «сработала» и ничего не изменила.
+      if (cmd.mode.kind === 'pin' && !langs.includes(cmd.mode.current)) {
+        st.toast_(`${name}: ${cmd.mode.current.toUpperCase()} is not in this channel's languages.`, 'warn');
+        break;
+      }
+      // Авто — это определение языка моделью, то есть Gemini и ключ.
+      if (cmd.mode.kind === 'auto' && langs.length < 2) {
+        st.toast_(`${name}: auto needs at least two languages in the profile.`, 'warn');
+        break;
+      }
+
+      st.setProfile(
+        cmd.who === 'presenter' ? { ...p, presenterMode: cmd.mode } : { ...p, audienceMode: cmd.mode },
+      );
+      applyMode(cmd.who);
+      st.toast_(`${name}: ${cmd.mode.kind === 'auto' ? 'auto' : cmd.mode.current.toUpperCase()}`);
+      break;
+    }
     case 'next': st.move(1); st.setOverview(false); break;
     case 'prev': st.move(-1); st.setOverview(false); break;
     case 'first': st.goto(0); st.setOverview(false); break;
     case 'last': st.goto(st.slideCount - 1); st.setOverview(false); break;
     case 'goto': st.goto(cmd.slide - 1); st.setOverview(false); break;
     case 'overview': st.setOverview(true); break;
+    case 'readIn': void st.setViewLang(cmd.lang); break;
+    case 'close': deck?.close(); break;
+    case 'open': {
+      const have = deck?.count() ?? 0;
+      // Названного номера может не быть. Молчать нельзя: человек сказал
+      // команду, она разобралась, и отсутствие любой реакции читается
+      // как «распознавание не работает» — сегодня это уже проходили.
+      if (cmd.deck > have) {
+        st.toast_(`Only ${have} presentation${have === 1 ? '' : 's'} in the gallery.`, 'warn');
+        break;
+      }
+      deck?.openNth(cmd.deck);
+      break;
+    }
   }
 }
 
@@ -30,12 +85,15 @@ function runVoiceCommand(cmd: VoiceCommand): void {
  * ограничения Azure на один одновременный поток, а Azure из проекта ушёл.
  * Переключать каналы посреди разговора всё равно некогда.
  */
-export function useChannels(terms: RefObject<string[]>) {
+export function useChannels(terms: RefObject<string[]>, deckVoice: RefObject<DeckVoice | null>) {
   const providers = useRef<Partial<Record<Speaker, SpeechProvider>>>({});
   // Захваченный звук встречи переживает перезапуск канала: смена языка зала
   // иначе заново спрашивала бы разрешение на показ экрана — посреди доклада.
   const roomAudio = useRef<MediaStream | null>(null);
   const [listening, setListening] = useState(false);
+  // applyMode определён ниже и сам зависит от start — через ref, иначе
+  // получилась бы взаимная зависимость двух useCallback.
+  const applyModeRef = useRef<((who: Speaker) => void) | null>(null);
 
   const grabRoomAudio = useCallback(async (): Promise<MediaStream | null> => {
     const cached = roomAudio.current;
@@ -89,10 +147,14 @@ export function useChannels(terms: RefObject<string[]>) {
           const st = useStore.getState();
 
           // Команды слушаем только у микрофона: «дальше», сказанное кем-то
-          // в зале, перелистывать доклад не должно.
-          const cmd = isPresenter ? matchVoiceCommand(u.origText) : null;
+          // в зале, перелистывать доклад не должно. Состояние экрана —
+          // часть разбора: команда, которой некуда сработать, остаётся
+          // словом и уходит в лог (см. voice-commands.ts).
+          const cmd = isPresenter
+            ? matchVoiceCommand(u.origText, { deckOpen: st.docId !== '' })
+            : null;
           if (cmd) {
-            runVoiceCommand(cmd);
+            runVoiceCommand(cmd, deckVoice.current, (who) => applyModeRef.current?.(who));
             // Промежуточный текст обычно гасит сам ingest; здесь его нет,
             // и без этого команда осталась бы висеть под слайдом.
             useStore.setState({ partial: null });
@@ -164,6 +226,7 @@ export function useChannels(terms: RefObject<string[]>) {
     },
     [start],
   );
+  applyModeRef.current = (who) => void applyMode(who);
 
   useEffect(() => {
     const live = providers.current;
