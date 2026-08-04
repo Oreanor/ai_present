@@ -93,19 +93,30 @@ export function DeckGallery({
                   onClick={() => onOpenRecent(d.docId)}
                   className="block w-full overflow-hidden rounded-lg border border-white/15 bg-black/40 text-left transition-colors hover:border-accent"
                 >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={d.thumb} alt="" className="block w-full" />
+                  <div className="relative">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={d.thumb} alt="" className="block w-full" />
+                    {/* Языки — метками в углу самой обложки. В строке под
+                        именем они читались как продолжение числа слайдов. */}
+                    {d.langs.length > 1 ? (
+                      <div className="absolute left-1.5 top-1.5 flex gap-1">
+                        {d.langs.map((l) => (
+                          <span
+                            key={l}
+                            className="rounded bg-black/65 px-1.5 py-0.5 font-mono text-[10px] uppercase leading-none text-white/85"
+                          >
+                            {l}
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
                   <div className="px-2.5 py-2">
                     <div className="truncate text-[13px] text-white/90" title={d.name}>
                       {d.name}
                     </div>
-                    <div className="flex items-center gap-1.5 text-[11px] text-white/45">
-                      <span>
-                        {d.pages} {t('slidesCount')}
-                      </span>
-                      {d.langs.length > 1 ? (
-                        <span className="font-mono uppercase text-accent">{d.langs.join(' · ')}</span>
-                      ) : null}
+                    <div className="text-[11px] text-white/45">
+                      {d.pages} {t('slidesCount')}
                     </div>
                   </div>
                 </button>
