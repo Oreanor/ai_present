@@ -3,6 +3,7 @@
 //   IndexedDB    — лог реплик. Может вырасти, пишется каждые 10 секунд,
 //                  и синхронный localStorage подтормаживал бы главный поток.
 
+import { DEFAULT_PROFILE, normalizeModes } from './profile';
 import type { Annotations, Entry, MeetingProfile, Shape } from './types';
 
 const K = {
@@ -34,7 +35,17 @@ function writeJSON(key: string, value: unknown): void {
   }
 }
 
-export const loadProfile = () => readJSON<MeetingProfile>(K.profile);
+/**
+ * Профиль из прошлых запусков. Поля добираются из умолчаний: состав
+ * профиля со временем меняется, и сохранённый вчера объект не обязан
+ * содержать то, что появилось сегодня — иначе приложение падает на
+ * пустом списке языков вместо того, чтобы просто открыться.
+ */
+export function loadProfile(): MeetingProfile | null {
+  const raw = readJSON<Partial<MeetingProfile>>(K.profile);
+  return raw ? normalizeModes({ ...DEFAULT_PROFILE, ...raw }) : null;
+}
+
 export const saveProfile = (p: MeetingProfile) => writeJSON(K.profile, p);
 
 export const loadCaptionSettings = <T,>() => readJSON<T>(K.captions);

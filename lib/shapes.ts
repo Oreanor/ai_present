@@ -1,4 +1,5 @@
 import { ANNOTATION } from './constants';
+import type { StringKey } from './ui-prefs';
 import type { Shape, ShapeKind } from './types';
 
 // Палитра и типы фигур. Геометрия — в lib/geometry.ts: попадание по фигуре
@@ -13,16 +14,20 @@ export const PALETTE = [
   { name: 'orange', value: 'rgb(251 146 60 / 0.35)' },
 ] as const;
 
-export const SHAPE_ORDER: ShapeKind[] = ['rect', 'ellipse', 'arrow'];
-
-export const SHAPE_LABELS: Record<ShapeKind, string> = {
-  rect: 'Rectangle',
-  ellipse: 'Ellipse',
-  arrow: 'Arrow',
-};
+/**
+ * Фигуры вместе со значком и ключом подписи. Значок лежит здесь, а не в
+ * разметке кнопки: подставлять его тернарником по виду фигуры значит
+ * править разметку каждый раз, когда фигур становится больше.
+ */
+export const SHAPES: { kind: ShapeKind; glyph: string; label: StringKey }[] = [
+  { kind: 'rect', glyph: '▭', label: 'shapeRect' },
+  { kind: 'ellipse', glyph: '◯', label: 'shapeEllipse' },
+  { kind: 'arrow', glyph: '➜', label: 'shapeArrow' },
+];
 
 export function nextShapeKind(k: ShapeKind): ShapeKind {
-  return SHAPE_ORDER[(SHAPE_ORDER.indexOf(k) + 1) % SHAPE_ORDER.length];
+  const i = SHAPES.findIndex((s) => s.kind === k);
+  return SHAPES[(i + 1) % SHAPES.length].kind;
 }
 
 /** Стрелка без площади: пастель на ней не читается, делаем плотнее. */

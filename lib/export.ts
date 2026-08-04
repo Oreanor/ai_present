@@ -1,4 +1,5 @@
 import type { Entry, Lang, MeetingProfile } from './types';
+import { captionLangOf, transcriptLangs } from './profile';
 import { LANG_NAMES } from './types';
 
 // Экспорт (§10). Основное, что отдают после встречи, — две одноязычные
@@ -20,7 +21,7 @@ export function transcriptMarkdown(entries: Entry[], lang: Lang, profile: Meetin
   const lines: string[] = [];
   lines.push(`# Meeting transcript — ${LANG_NAMES[lang]}`);
   lines.push('');
-  lines.push(`Captions were shown in ${LANG_NAMES[profile.captionLang]}.`);
+  lines.push(`Captions were shown in ${LANG_NAMES[captionLangOf(profile)]}.`);
   lines.push('');
 
   let lastSlide = -1;
@@ -42,7 +43,7 @@ export function transcriptMarkdown(entries: Entry[], lang: Lang, profile: Meetin
 
 /** Отладочный экспорт: обе версии плюс оригинал и origLang каждой реплики. */
 export function fullMarkdown(entries: Entry[], profile: MeetingProfile): string {
-  const [a, b] = profile.transcriptLangs;
+  const [a, b] = transcriptLangs(profile);
   const lines = ['# Meeting log (full)', ''];
   for (const e of entries.filter((x) => x.isFinal)) {
     const who = e.speaker === 'presenter' ? 'Presenter' : 'Audience';
@@ -79,7 +80,7 @@ export function download(filename: string, content: string): void {
 }
 
 export function exportAll(entries: Entry[], profile: MeetingProfile): void {
-  for (const lang of profile.transcriptLangs) {
+  for (const lang of transcriptLangs(profile)) {
     download(`transcript-${lang}.md`, transcriptMarkdown(entries, lang, profile));
   }
 }

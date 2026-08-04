@@ -1,10 +1,13 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { AnnotationLayer } from '@/components/AnnotationLayer';
 import { AnnotationTools } from '@/components/AnnotationTools';
+import { CaptionFooter } from '@/components/CaptionFooter';
 import { ChatLog } from '@/components/ChatLog';
 import { ControlMenu } from '@/components/ControlMenu';
+import { StatusDot } from '@/components/StatusDot';
 import { DeckGallery } from '@/components/DeckGallery';
 import { EdgeNav } from '@/components/EdgeNav';
 import { SlideCanvas } from '@/components/SlideCanvas';
@@ -22,8 +25,8 @@ import { modeCycle, modeLabel } from '@/lib/profile';
 import { planChannels } from '@/lib/speech/registry';
 import { quota } from '@/lib/speech/gemini-provider';
 import { loadCap, loadProfile, loadTier } from '@/lib/storage';
-import { hydrateStore, shownLang, useStore } from '@/lib/store';
-import { LANG_NAMES, type Lang, type LangMode, type Speaker } from '@/lib/types';
+import { hydrateStore, useStore } from '@/lib/store';
+import type { Lang, LangMode, Speaker } from '@/lib/types';
 import { uid } from '@/lib/speech/types';
 import { initUiPrefs, useT, useTheme, useUiLang } from '@/lib/ui-prefs';
 
@@ -38,7 +41,30 @@ import { initUiPrefs, useT, useTheme, useUiLang } from '@/lib/ui-prefs';
  * под «⋯».
  */
 export default function ControlPage() {
-  const s = useStore();
+  // Подписка поимённая, а не на весь стор: реплики и промежуточный текст
+  // меняются по нескольку раз в секунду, и подписка на всё перерисовывала
+  // бы слайд с разметкой на каждое распознанное слово. Действия берутся
+  // из стора отдельно — они создаются один раз и перерисовок не вызывают.
+  const s = useStore(
+    useShallow((st) => ({
+      profile: st.profile,
+      captions: st.captions,
+      slideIndex: st.slideIndex,
+      slideCount: st.slideCount,
+      annotations: st.annotations,
+      shapeKind: st.shapeKind,
+      shapeColor: st.shapeColor,
+      presenterStatus: st.presenterStatus,
+      audienceStatus: st.audienceStatus,
+      toast: st.toast,
+      addShape: st.addShape,
+      removeShape: st.removeShape,
+      moveShape: st.moveShape,
+      undoShape: st.undoShape,
+      move: st.move,
+      snapshot: st.snapshot,
+    })),
+  );
   const theme = useTheme();
   const uiLang = useUiLang();
   const t = useT();
@@ -159,10 +185,12 @@ export default function ControlPage() {
 
   // --- межоконная синхронизация -------------------------------------------
 
-  const snapshot = useStore((st) => st.snapshot);
+  // Снимок уходит на то, что видно в окне показа. Строка субтитров сюда
+  // не входит намеренно: она меняется чаще всего, а окно показа берёт её
+  // из своего же потока сообщений.
   useEffect(() => {
-    if (ready) bus.current.send({ type: 'state', payload: snapshot() });
-  }, [ready, snapshot, s.slideIndex, s.captions, s.annotations, s.captionLine, s.shapeKind, s.shapeColor, s.presenterStatus, s.audienceStatus]);
+    if (ready) bus.current.send({ type: 'state', payload: s.snapshot() });
+  }, [ready, s, s.slideIndex, s.captions, s.annotations, s.shapeKind, s.shapeColor, s.presenterStatus, s.audienceStatus]);
 
   useEffect(() => {
     return bus.current.on((m: BusMessage) => {
@@ -199,21 +227,6 @@ export default function ControlPage() {
   const plan = planChannels(s.profile);
   const geminiInUse = plan.presenter === 'gemini' || plan.audience === 'gemini';
   const shapes = s.annotations[s.slideIndex] ?? [];
-
-  // Крупная строка внизу: во время Q&A это вопрос на языке ведущего,
-  // иначе — то, что прямо сейчас читает зал. После перезагрузки живой
-  // строки нет, поэтому падаем на последнюю запись восстановленного лога.
-  const view = shownLang(s);
-  const finals = s.entries.filter((e) => e.isFinal);
-  const last = finals[finals.length - 1];
-  const roomAsked = last?.speaker === 'audience';
-  const bigText = roomAsked
-    ? last.texts[s.profile.transcriptLangs[0]]
-    : (s.captionLine?.text ?? last?.texts[view]);
-  // Мелкая верхняя строка — распознанное как есть. Показывать её рядом с
-  // тем же самым текстом незачем: когда говорили уже на языке показа,
-  // перевода нет и дублировать нечего.
-  const heard = last && last.origText !== bigText ? last.origText : null;
 
   return (
     <main className="flex h-dvh flex-col overflow-hidden">
@@ -330,21 +343,7 @@ export default function ControlPage() {
 
       {/* Крупная строка. Высота фиксирована: если считать по содержимому,
           длинная фраза выталкивает сама себя за край окна. */}
-      <footer
-        className="flex shrink-0 flex-col items-center justify-center gap-1.5 border-t border-line bg-panel px-10 py-3"
-        style={{ height: LAYOUT.BAND_PX }}
-      >
-        {/* Сверху мелко — что распозналось как есть, снизу крупно — перевод
-            на выбранный язык. Подписи «на экране такой-то язык» здесь нет:
-            язык виден по самому тексту, а строка занимала место. */}
-        <div className="flex max-w-[90%] items-center gap-2 text-[13px] text-dim">
-          <StatusDot status={roomAsked ? s.audienceStatus : s.presenterStatus} />
-          <span className="truncate">{s.partial ?? heard ?? ''}</span>
-        </div>
-        <p className="line-clamp-2 text-center text-[34px] font-semibold leading-tight" style={{ textWrap: 'balance' }}>
-          {bigText ?? <span className="text-[16px] font-normal text-dim">{t('nothingYet')}</span>}
-        </p>
-      </footer>
+      <CaptionFooter />
     </main>
   );
 }
@@ -384,24 +383,12 @@ function ChannelChip({
 }) {
   const fixed = modeCycle(langs).length < 2;
   return (
-    <button onClick={onCycle} disabled={fixed} className="chip" title={hint}>
+    <button onClick={onCycle} disabled={fixed} className="channel" title={hint}>
       <StatusDot status={status} />
       <span className="text-[10px] uppercase text-dim">{label}</span>
       <span className="ml-auto font-mono text-xs font-bold">{modeLabel(mode)}</span>
     </button>
   );
-}
-
-function StatusDot({ status }: { status: string }) {
-  const color =
-    status === 'listening'
-      ? 'var(--ok)'
-      : status === 'connecting' || status === 'reconnecting'
-        ? 'var(--warn)'
-        : status === 'error'
-          ? 'var(--err)'
-          : 'var(--line)';
-  return <i className="dot" style={{ background: color }} title={status} />;
 }
 
 function Toast({ kind, text }: { kind: 'info' | 'warn' | 'error'; text: string }) {

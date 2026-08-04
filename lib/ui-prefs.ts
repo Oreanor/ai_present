@@ -111,8 +111,6 @@ const DICT = {
   themeDark: { en: 'Dark', pt: 'Escuro' },
   themeLight: { en: 'Light', pt: 'Claro' },
   interfaceLanguage: { en: 'Interface language', pt: 'Idioma da interface' },
-  shareWindow: { en: 'The window you share in Teams', pt: 'A janela que partilha no Teams' },
-  openPresentation: { en: 'Open the presentation window', pt: 'Abrir a janela de apresentação' },
   fullLog: { en: 'Full log with originals', pt: 'Registo completo com originais' },
   flaggedOnly: { en: 'Flagged items only', pt: 'Apenas itens marcados' },
   session: { en: 'Session', pt: 'Sessão' },
@@ -137,36 +135,11 @@ const DICT = {
   languages: { en: 'Languages', pt: 'Idiomas' },
   iSpeak: { en: 'I speak', pt: 'Eu falo' },
   audienceSpeaks: { en: 'The audience speaks', pt: 'A audiência fala' },
-  captionsShownIn: { en: 'Captions shown in', pt: 'Legendas mostradas em' },
-  transcriptsIn: { en: 'Two transcripts in', pt: 'Duas transcrições em' },
 
-  howLangDecided: { en: 'How the language is decided', pt: 'Como o idioma é determinado' },
   howLangLead: {
     en: 'This choice decides the engine, and the difference is bigger than it looks.',
     pt: 'Esta escolha determina o motor, e a diferença é maior do que parece.',
   },
-  colPin: { en: 'Pin — you say which language', pt: 'Fixo — você indica o idioma' },
-  colAuto: { en: 'Auto — the engine decides', pt: 'Auto — o motor decide' },
-  rowDelay: { en: 'Caption delay', pt: 'Atraso das legendas' },
-  rowPartial: { en: 'Live partial text', pt: 'Texto parcial ao vivo' },
-  rowLimits: { en: 'Daily limits', pt: 'Limites diários' },
-  rowKey: { en: 'API key', pt: 'Chave API' },
-  rowOffline: { en: 'Works offline', pt: 'Funciona offline' },
-  rowRemember: { en: 'You must remember', pt: 'Tem de lembrar-se' },
-  valYes: { en: 'yes', pt: 'sim' },
-  valNo: { en: 'no', pt: 'não' },
-  valNone: { en: 'none at all', pt: 'nenhum' },
-  valSharedQuota: { en: 'shared Gemini quota', pt: 'quota Gemini partilhada' },
-  valNotNeeded: { en: 'not needed', pt: 'não necessária' },
-  valRequired: { en: 'required', pt: 'necessária' },
-  valPartly: { en: 'partly', pt: 'parcialmente' },
-  valPressL: { en: 'press L before switching', pt: 'premir L antes de mudar' },
-  valNothing: { en: 'nothing', pt: 'nada' },
-
-  microphone: { en: 'Microphone', pt: 'Microfone' },
-  roomAudio: { en: 'Room audio', pt: 'Áudio da sala' },
-  modePin: { en: 'Pin', pt: 'Fixo' },
-  modeAuto: { en: 'Auto', pt: 'Auto' },
 
   apiKeyTitle: { en: 'Gemini API key', pt: 'Chave API Gemini' },
   apiKeyLead: {
@@ -293,6 +266,9 @@ const DICT = {
   forgetDeck: { en: 'Forget this deck', pt: 'Esquecer esta apresentação' },
 
   // --- разметка ---
+  shapeRect: { en: 'Rectangle', pt: 'Retângulo' },
+  shapeEllipse: { en: 'Ellipse', pt: 'Elipse' },
+  shapeArrow: { en: 'Arrow', pt: 'Seta' },
   undoShape: { en: 'Undo the last shape (right-click)', pt: 'Anular a última forma (clique direito)' },
   clearSlideShapes: { en: 'Clear this slide', pt: 'Limpar este diapositivo' },
 } as const;

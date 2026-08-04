@@ -152,13 +152,13 @@ body[data-window='present'] {
   /* Канал распознавания: лампочка, чей он и на каком языке слушается.
      Это одна кнопка, а не точка рядом с кнопкой, — состояние канала и
      его язык читаются вместе. */
-  .chip {
+  .channel {
     @apply flex flex-1 items-center gap-1.5 rounded border border-line px-2 py-1 leading-none;
   }
-  .chip:hover:not(:disabled) {
+  .channel:hover:not(:disabled) {
     background: color-mix(in srgb, var(--fg) 7%, transparent);
   }
-  .chip:disabled {
+  .channel:disabled {
     @apply cursor-default;
   }
 

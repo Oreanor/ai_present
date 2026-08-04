@@ -40,13 +40,17 @@ export function SlideCanvas({
     onRect?.(rect);
   }, [rect.x, rect.y, rect.w, rect.h, onRect]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Ширина отрисовки округляется вверх до шага: иначе перетаскивание края
+  // окна заставляет pdf.js перерисовывать страницу на каждый пиксель.
+  const drawW = Math.ceil(rect.w / RENDER.WIDTH_STEP) * RENDER.WIDTH_STEP;
+
   useEffect(() => {
-    if (!renderer || rect.w < 2) return;
+    if (!renderer || drawW < 2) return;
     let cancelled = false;
     const dpr = Math.min(window.devicePixelRatio || 1, RENDER.MAX_DPR);
 
     renderer
-      .render(index, rect.w, dpr)
+      .render(index, drawW, dpr)
       .then((canvas) => {
         if (cancelled) return;
         const host = hostRef.current;
@@ -56,7 +60,7 @@ export function SlideCanvas({
         canvas.style.display = 'block';
         host.replaceChildren(canvas);
         setError(null);
-        renderer.prefetch(index, rect.w, dpr);
+        renderer.prefetch(index, drawW, dpr);
       })
       .catch((e: unknown) => {
         if (!cancelled) setError(e instanceof Error ? e.message : String(e));
@@ -65,7 +69,7 @@ export function SlideCanvas({
     return () => {
       cancelled = true;
     };
-  }, [renderer, index, rect.w, rect.h]);
+  }, [renderer, index, drawW]);
 
   return (
     <div

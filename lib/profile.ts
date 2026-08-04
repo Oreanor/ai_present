@@ -1,25 +1,45 @@
-import type { Lang, LangMode, MeetingProfile } from './types';
+import { ALL_LANGS, type Lang, type LangMode, type MeetingProfile } from './types';
 
 // Профиль встречи — ЕДИНСТВЕННОЕ место, где заданы языки (ТЗ §3а).
 // Нигде больше в коде не должно быть литералов 'en' / 'pt' / 'ru'
 // в смысле «язык ведущего» или «язык субтитров».
 
 /**
- * С чего начинает новый пользователь. Готовых профилей на выбор больше нет:
- * их было три, отличались они парой полей, а разобраться в различиях было
- * дольше, чем просто выставить языки — что всё равно приходилось делать.
+ * С чего начинает новый пользователь.
  *
  * Микрофон в пине, зал в авто — конфигурация из §4: своя речь получает
  * секундную задержку и не расходует лимит, а язык вопроса заранее неизвестен.
+ * Оба режима перебираются кнопкой канала прямо во время доклада, поэтому
+ * ошибиться здесь нестрашно.
  */
 export const DEFAULT_PROFILE: MeetingProfile = {
   presenterLangs: ['en'],
   presenterMode: { kind: 'pin', current: 'en' },
   audienceLangs: ['pt', 'en'],
   audienceMode: { kind: 'auto' },
-  captionLang: 'pt',
-  transcriptLangs: ['en', 'pt'],
 };
+
+/**
+ * Язык субтитров — первый язык зала: полосу читает он.
+ * Отдельной настройки нет: переключатель над лентой меняет язык показа
+ * в любой момент, а спрашивать то же самое ещё и в мастере незачем.
+ */
+export function captionLangOf(p: MeetingProfile): Lang {
+  return p.audienceLangs[0] ?? ALL_LANGS[0];
+}
+
+/**
+ * Два языка, которые ведутся всегда и целиком: язык ведущего и язык зала.
+ * Первый — язык ведущего, на нём фокус лога и выгрузка для себя.
+ *
+ * Если они совпадают, вторым берём любой другой: две одинаковые
+ * стенограммы это одна стенограмма, и половина интерфейса теряет смысл.
+ */
+export function transcriptLangs(p: MeetingProfile): [Lang, Lang] {
+  const first = p.presenterLangs[0] ?? ALL_LANGS[0];
+  const second = p.audienceLangs.find((l) => l !== first) ?? ALL_LANGS.find((l) => l !== first) ?? ALL_LANGS[1];
+  return [first, second];
+}
 
 /**
  * Проблема профиля. Текст НЕ хранится здесь: это слой данных, а слова
@@ -28,14 +48,7 @@ export const DEFAULT_PROFILE: MeetingProfile = {
  */
 export type ProfileProblem = { field: string; key: ProblemKey; fatal: boolean };
 
-export type ProblemKey =
-  | 'needPresenterLang'
-  | 'needAudienceLang'
-  | 'captionNotInTranscripts'
-  | 'transcriptsSame'
-  | 'autoWithOneLang'
-  | 'pinnedNotInList'
-  | 'autoOnMicIsExpensive';
+export type ProblemKey = 'needPresenterLang' | 'needAudienceLang' | 'autoWithOneLang' | 'autoOnMicIsExpensive';
 
 export function validateProfile(p: MeetingProfile): ProfileProblem[] {
   const out: ProfileProblem[] = [];
@@ -43,17 +56,10 @@ export function validateProfile(p: MeetingProfile): ProfileProblem[] {
 
   if (p.presenterLangs.length === 0) add('presenterLangs', 'needPresenterLang', true);
   if (p.audienceLangs.length === 0) add('audienceLangs', 'needAudienceLang', true);
-  if (!p.transcriptLangs.includes(p.captionLang)) add('captionLang', 'captionNotInTranscripts', true);
-  if (p.transcriptLangs[0] === p.transcriptLangs[1]) add('transcriptLangs', 'transcriptsSame', true);
 
   // auto на одном кандидате — бессмысленная трата лимита: определять нечего.
   if (p.presenterMode.kind === 'auto' && p.presenterLangs.length < 2) add('presenterMode', 'autoWithOneLang', false);
   if (p.audienceMode.kind === 'auto' && p.audienceLangs.length < 2) add('audienceMode', 'autoWithOneLang', false);
-
-  if (p.presenterMode.kind === 'pin' && !p.presenterLangs.includes(p.presenterMode.current))
-    add('presenterMode', 'pinnedNotInList', true);
-  if (p.audienceMode.kind === 'pin' && !p.audienceLangs.includes(p.audienceMode.current))
-    add('audienceMode', 'pinnedNotInList', true);
 
   // Микрофон в auto — самый дорогой режим: ведущий говорит почти непрерывно.
   if (p.presenterMode.kind === 'auto') add('presenterMode', 'autoOnMicIsExpensive', false);
@@ -65,30 +71,45 @@ export function profileIsUsable(p: MeetingProfile): boolean {
   return !validateProfile(p).some((x) => x.fatal);
 }
 
+/**
+ * Привести режимы каналов в согласие со списками языков.
+ *
+ * Пин на язык, которого больше нет в списке, — состояние, из которого
+ * приложение не стартует. Раз списки правят в одном месте, а режимы
+ * перебирают в другом, чинить это должен сам профиль, а не мастер.
+ */
+export function normalizeModes(p: MeetingProfile): MeetingProfile {
+  const fix = (mode: LangMode, langs: Lang[]): LangMode => {
+    if (!langs.length) return mode;
+    if (mode.kind === 'auto') return langs.length >= 2 ? mode : { kind: 'pin', current: langs[0] };
+    return langs.includes(mode.current) ? mode : { kind: 'pin', current: langs[0] };
+  };
+  return {
+    ...p,
+    presenterMode: fix(p.presenterMode, p.presenterLangs),
+    audienceMode: fix(p.audienceMode, p.audienceLangs),
+  };
+}
+
 /** Языковые пары для перевода — вычисляются из профиля, а не перечисляются руками. */
 export function requiredPairs(p: MeetingProfile): { from: Lang; to: Lang }[] {
   const sources = new Set<Lang>([...p.presenterLangs, ...p.audienceLangs]);
   const pairs: { from: Lang; to: Lang }[] = [];
   for (const from of sources) {
-    for (const to of p.transcriptLangs) {
+    for (const to of transcriptLangs(p)) {
       if (from !== to) pairs.push({ from, to });
     }
   }
   return pairs;
 }
 
-/** Нужен ли вообще ключ Gemini при этом профиле. */
-export function needsApiKey(p: MeetingProfile): boolean {
-  return p.presenterMode.kind === 'auto' || p.audienceMode.kind === 'auto';
-}
-
 /** Языки, в которые надо перевести реплику: стенограммы минус её собственный. */
 export function targetsFor(p: MeetingProfile, origLang: Lang): Lang[] {
-  return p.transcriptLangs.filter((l) => l !== origLang);
+  return transcriptLangs(p).filter((l) => l !== origLang);
 }
 
 /**
- * Порядок перебора для кнопки канала: сначала языки, потом AUTO.
+ * Порядок перебора для кнопки канала: сначала языки канала, потом AUTO.
  *
  * AUTO появляется только при двух и более кандидатах — на одном языке
  * определять нечего, а стоит это дороже всего (§4). Порядок именно такой,
@@ -102,7 +123,7 @@ export function modeCycle(langs: Lang[]): LangMode[] {
 
 export function nextMode(langs: Lang[], m: LangMode): LangMode {
   const cycle = modeCycle(langs);
-  const i = cycle.findIndex((x) => (x.kind === 'auto' ? m.kind === 'auto' : m.kind === 'pin' && x.current === m.current));
+  const i = cycle.findIndex((x) => sameMode(x, m));
   return cycle[(i + 1) % cycle.length] ?? m;
 }
 

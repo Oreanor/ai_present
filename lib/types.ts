@@ -17,15 +17,19 @@ export type LangMode =
   | { kind: 'auto' }
   | { kind: 'pin'; current: Lang };
 
+/**
+ * Настройки языков встречи. Здесь ТОЛЬКО то, что человек выбрал сам:
+ * на каких языках говорит он и на каких может говорить зал.
+ *
+ * Язык субтитров и языки стенограмм отсюда выводятся (см. profile.ts) и
+ * полем не хранятся: спрашивать их отдельно значит спрашивать одно и то
+ * же дважды, а потом следить, чтобы ответы не разъехались.
+ */
 export type MeetingProfile = {
   presenterLangs: Lang[];
   presenterMode: LangMode;
   audienceLangs: Lang[];
   audienceMode: LangMode;
-  /** Язык полосы субтитров — язык, который понимает зал. */
-  captionLang: Lang;
-  /** Ровно два языка стенограмм. Первый — язык ведущего, на нём фокус лога. */
-  transcriptLangs: [Lang, Lang];
 };
 
 export type Speaker = 'presenter' | 'audience';

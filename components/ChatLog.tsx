@@ -1,7 +1,9 @@
 'use client';
 
-import { useLayoutEffect, useRef, useState } from 'react';
-import { useStore } from '@/lib/store';
+import { memo, useCallback, useLayoutEffect, useRef, useState } from 'react';
+import { useShallow } from 'zustand/react/shallow';
+import { shownLang, useStore } from '@/lib/store';
+import { transcriptLangs } from '@/lib/profile';
 import { ALL_LANGS, LANG_NAMES, type Entry, type Lang } from '@/lib/types';
 import { useT } from '@/lib/ui-prefs';
 
@@ -18,15 +20,28 @@ import { useT } from '@/lib/ui-prefs';
  * Упрощён показ, а не данные.
  */
 export function ChatLog() {
-  const { entries, profile, viewLang, translating, setViewLang, toggleFlag, editEntry } = useStore();
+  // Поимённая подписка: промежуточный текст распознавания меняется по
+  // нескольку раз в секунду, и подписка на весь стор перерисовывала бы
+  // всю ленту на каждое слово.
+  const { entries, profile, viewLang, translating, setViewLang } = useStore(
+    useShallow((s) => ({
+      entries: s.entries,
+      profile: s.profile,
+      viewLang: s.viewLang,
+      translating: s.translating,
+      setViewLang: s.setViewLang,
+    })),
+  );
   const t = useT();
 
   const boxRef = useRef<HTMLDivElement>(null);
   const [stick, setStick] = useState(true);
   const [open, setOpen] = useState<string | null>(null);
+  const toggleOpen = useCallback((id: string) => setOpen((cur) => (cur === id ? null : id)), []);
 
-  const shown = viewLang ?? profile.captionLang;
-  const other = profile.transcriptLangs.find((l) => l !== shown) ?? profile.transcriptLangs[0];
+  const kept = transcriptLangs(profile);
+  const shown = shownLang({ viewLang, profile });
+  const other = kept.find((l) => l !== shown) ?? kept[0];
 
   // Автопрокрутка отключается при ручном скролле — иначе невозможно
   // перечитать вопрос, заданный минуту назад.
@@ -46,7 +61,7 @@ export function ChatLog() {
             disabled={!!translating}
             className={`btn btn-sm font-semibold uppercase ${shown === l ? 'btn-on' : ''}`}
             title={
-              profile.transcriptLangs.includes(l) ? t('hintKeptIn') : t('hintTranslateAll')
+              kept.includes(l) ? t('hintKeptIn') : t('hintTranslateAll')
             }
           >
             {l}
@@ -76,9 +91,7 @@ export function ChatLog() {
             shown={shown}
             other={other}
             expanded={open === e.id}
-            onToggle={() => setOpen(open === e.id ? null : e.id)}
-            onFlag={() => toggleFlag(e.id)}
-            onEdit={(text) => editEntry(e.id, shown, text)}
+            onToggle={toggleOpen}
           />
         ))}
       </div>
@@ -99,22 +112,23 @@ export function ChatLog() {
   );
 }
 
-function Bubble({
+/**
+ * Пузырь мемоизирован, и пропсы у него только данные: обработчики,
+ * созданные заново на каждый рендер, свели бы мемоизацию к нулю. Правка
+ * и метка берутся прямо из стора — они не зависят от родителя.
+ */
+const Bubble = memo(function Bubble({
   entry,
   shown,
   other,
   expanded,
   onToggle,
-  onFlag,
-  onEdit,
 }: {
   entry: Entry;
   shown: Lang;
   other: Lang;
   expanded: boolean;
-  onToggle: () => void;
-  onFlag: () => void;
-  onEdit: (text: string) => void;
+  onToggle: (id: string) => void;
 }) {
   const t = useT();
   const mine = entry.speaker === 'presenter';
@@ -123,7 +137,7 @@ function Bubble({
   return (
     <div className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
       <div className={`flex flex-col ${mine ? 'items-end' : 'items-start'} max-w-[88%]`}>
-        <button onClick={onToggle} className={`bubble ${mine ? 'bubble-mine' : 'bubble-room'}`} title={t('clickForOther')}>
+        <button onClick={() => onToggle(entry.id)} className={`bubble ${mine ? 'bubble-mine' : 'bubble-room'}`} title={t('clickForOther')}>
           {main}
         </button>
 
@@ -142,7 +156,7 @@ function Bubble({
             </>
           ) : null}
           <button
-            onClick={onFlag}
+            onClick={() => useStore.getState().toggleFlag(entry.id)}
             className={entry.flagged ? 'opacity-100' : 'opacity-30 hover:opacity-80'}
             title={t('flagForFollowUp')}
           >
@@ -165,7 +179,7 @@ function Bubble({
             <button
               onClick={() => {
                 const next = prompt(`${t('fixTextPrompt')} (${LANG_NAMES[shown]})`, main);
-                if (next !== null) onEdit(next);
+                if (next !== null) useStore.getState().editEntry(entry.id, shown, next);
               }}
               className="btn btn-sm mt-1.5"
             >
@@ -176,4 +190,4 @@ function Bubble({
       </div>
     </div>
   );
-}
+});

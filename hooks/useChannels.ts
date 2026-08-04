@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
+import { transcriptLangs } from '@/lib/profile';
 import { createProvider, planChannels, providerFor, type ProviderId } from '@/lib/speech/registry';
 import type { SpeechProvider } from '@/lib/speech/types';
 import { useStore } from '@/lib/store';
@@ -65,7 +66,7 @@ export function useChannels(terms: RefObject<string[]>) {
       await p.start({
         source,
         sourceLang: mode.kind === 'pin' ? [mode.current] : langs,
-        targetLangs: st.profile.transcriptLangs,
+        targetLangs: transcriptLangs(st.profile),
         phrases: terms.current ?? [],
         onPartial: (u) => useStore.getState().ingest(u, speaker, false),
         onFinal: (u) => useStore.getState().ingest(u, speaker, true),

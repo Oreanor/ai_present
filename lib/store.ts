@@ -17,7 +17,7 @@ import {
   type Utterance,
 } from './types';
 import { CAPTIONS, SIDE_COLUMN } from './constants';
-import { DEFAULT_PROFILE, modeCycle, nextMode, targetsFor } from './profile';
+import { DEFAULT_PROFILE, captionLangOf, modeCycle, nextMode, targetsFor, transcriptLangs } from './profile';
 import { applyGlossary, type GlossaryEntry } from './glossary';
 import { translate } from './speech/translator';
 import { PALETTE, nextShapeKind } from './shapes';
@@ -32,7 +32,7 @@ export type CaptionLine = { text: string; final: boolean; speaker: Speaker; at: 
  * зал видит их рядом, в одном окне.
  */
 export function shownLang(s: { viewLang: Lang | null; profile: MeetingProfile }): Lang {
-  return s.viewLang ?? s.profile.captionLang;
+  return s.viewLang ?? captionLangOf(s.profile);
 }
 
 type State = {
@@ -238,7 +238,7 @@ export const useStore = create<State>((set, get) => ({
     }
     // Реплика на языке стенограммы попадает туда как оригинал, а не
     // переводится сама в себя (§3а).
-    if (profile.transcriptLangs.includes(u.origLang)) texts[u.origLang] = applyGlossary(u.origText, glossary);
+    if (transcriptLangs(profile).includes(u.origLang)) texts[u.origLang] = applyGlossary(u.origText, glossary);
 
     const existing = entries.findIndex((e) => e.id === u.id);
     const entry: Entry = {

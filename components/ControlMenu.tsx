@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { download, flaggedMarkdown, fullMarkdown } from '@/lib/export';
-import { requiredPairs } from '@/lib/profile';
+import { requiredPairs, transcriptLangs } from '@/lib/profile';
 import { getTranslator, pairAvailability } from '@/lib/speech/translator';
 import { useStore } from '@/lib/store';
 import { HOTKEY_HELP } from '@/lib/hotkeys';
@@ -79,7 +79,7 @@ export function ControlMenu({
           </button>
           <button
             className="menu-item"
-            onClick={() => download('follow-up.md', flaggedMarkdown(state.entries, state.profile.transcriptLangs[0]))}
+            onClick={() => download('follow-up.md', flaggedMarkdown(state.entries, transcriptLangs(state.profile)[0]))}
           >
             {t('flaggedOnly')}
           </button>

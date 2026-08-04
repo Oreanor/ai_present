@@ -1,6 +1,6 @@
 'use client';
 
-import { PALETTE, SHAPE_LABELS, SHAPE_ORDER } from '@/lib/shapes';
+import { PALETTE, SHAPES } from '@/lib/shapes';
 import { useStore } from '@/lib/store';
 import { useT } from '@/lib/ui-prefs';
 
@@ -17,14 +17,14 @@ export function AnnotationTools() {
 
   return (
     <div className="absolute bottom-2 left-2 flex items-center gap-1 rounded-lg bg-black/70 p-1 opacity-0 transition-opacity duration-150 focus-within:opacity-100 hover:opacity-100 group-hover/stage:opacity-70">
-      {SHAPE_ORDER.map((k) => (
+      {SHAPES.map((s) => (
         <button
-          key={k}
-          onClick={() => setShapeKind(k)}
-          title={`${SHAPE_LABELS[k]} (Tab)`}
-          className={`rounded px-2 py-1 text-[11px] text-white/80 ${shapeKind === k ? 'bg-white/25 text-white' : 'hover:bg-white/10'}`}
+          key={s.kind}
+          onClick={() => setShapeKind(s.kind)}
+          title={`${t(s.label)} (Tab)`}
+          className={`rounded px-2 py-1 text-[11px] text-white/80 ${shapeKind === s.kind ? 'bg-white/25 text-white' : 'hover:bg-white/10'}`}
         >
-          {k === 'rect' ? '▭' : k === 'ellipse' ? '◯' : '➜'}
+          {s.glyph}
         </button>
       ))}
 
