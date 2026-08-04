@@ -34,7 +34,6 @@ export function CaptionColumn({
     if (el) el.scrollTop = el.scrollHeight;
   }, [history]);
 
-  if (!settings.visible) return null;
 
   // Промежуточные результаты сюда не идут вовсе — по той же причине, что
   // и в полосу: дописывающийся по слову текст мешает читать. Колонка

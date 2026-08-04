@@ -83,6 +83,8 @@ export function CaptionBand({
   const queue = useRef<Card[]>([]);
   const lastFinalId = useRef('');
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Таймер сейчас отсчитывает гашение, а не показ карточки. */
+  const clearing = useRef(false);
 
   // В полосу идут ТОЛЬКО законченные фразы. Промежуточные результаты
   // не показываются вообще: дописывающийся по слову текст невозможно
@@ -104,24 +106,46 @@ export function CaptionBand({
     pump();
   }, [line]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  /**
+   * Прокрутка очереди.
+   *
+   * Ожидание гашения — НЕ то же самое, что показ карточки. Раньше оба
+   * состояния хранились в одном таймере, и вход `if (timer.current) return`
+   * отсекал новую реплику, если она пришла в те семь секунд, пока полоса
+   * доживала. Реплика оставалась в очереди, а таймер гашения, увидев
+   * непустую очередь, ничего не гасил и никого не будил — полоса
+   * замирала на последней карточке до конца доклада.
+   *
+   * Теперь пришедшая реплика прерывает ожидание и показывается сразу.
+   */
   function pump() {
-    if (timer.current) return;
-    const step = () => {
+    if (timer.current) {
+      if (!clearing.current) return; // идёт показ карточки — не мешаем
+      clearTimeout(timer.current);
       timer.current = null;
-      const next = queue.current.shift();
-      if (!next) {
-        // Очередь пуста — гасим полосу после паузы.
-        timer.current = setTimeout(() => {
-          timer.current = null;
-          if (queue.current.length === 0) setCard(null);
-        }, CAPTIONS.CLEAR_AFTER_MS);
-        return;
-      }
-      setCard(next);
-      const dwell = Math.max(CAPTIONS.MIN_DWELL_MS, next.text.length * CAPTIONS.MS_PER_CHAR);
-      timer.current = setTimeout(step, dwell);
-    };
+      clearing.current = false;
+    }
     step();
+  }
+
+  function step() {
+    timer.current = null;
+    clearing.current = false;
+
+    const next = queue.current.shift();
+    if (!next) {
+      clearing.current = true;
+      timer.current = setTimeout(() => {
+        timer.current = null;
+        clearing.current = false;
+        setCard(null);
+      }, CAPTIONS.CLEAR_AFTER_MS);
+      return;
+    }
+
+    setCard(next);
+    const dwell = Math.max(CAPTIONS.MIN_DWELL_MS, next.text.length * CAPTIONS.MS_PER_CHAR);
+    timer.current = setTimeout(step, dwell);
   }
 
   useEffect(() => {
@@ -130,20 +154,7 @@ export function CaptionBand({
     };
   }, []);
 
-  // Клавиша H гасит полосу мгновенно и сбрасывает очередь: если
-  // распознавание понесло чушь, доигрывать её до конца незачем.
-  useEffect(() => {
-    if (!settings.visible) {
-      queue.current = [];
-      setCard(null);
-      if (timer.current) {
-        clearTimeout(timer.current);
-        timer.current = null;
-      }
-    }
-  }, [settings.visible]);
-
-  if (!settings.visible || !card) return null;
+  if (!card) return null;
 
   const fromAudience = card.speaker === 'audience';
 

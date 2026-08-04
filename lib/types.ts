@@ -108,8 +108,7 @@ export type CaptionSettings = {
   bandHeight: number;
   color: string;
   background: string;
-  visible: boolean;
-  /** Отдельно от visible: гасит только реплики зала, оставляя ведущего (§9). */
+  /** Гасит только реплики зала, оставляя ведущего (§9). */
   showAudience: boolean;
 };
 
@@ -119,7 +118,6 @@ export const DEFAULT_CAPTIONS: CaptionSettings = {
   bandHeight: 22,
   color: '#ffffff',
   background: 'rgb(0 0 0 / 0.62)',
-  visible: true,
   showAudience: true,
 };
 

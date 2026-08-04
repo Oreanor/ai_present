@@ -125,7 +125,7 @@ export default function PresentPage() {
   const sideActive = state.captions.layout === 'side' && room >= SIDE_COLUMN.MIN_FRACTION;
   const sideWidth = sideActive ? Math.round(size.w * room) : 0;
 
-  const bandHeight = state.captions.visible && !sideActive ? (size.h * state.captions.bandHeight) / 100 : 0;
+  const bandHeight = sideActive ? 0 : (size.h * state.captions.bandHeight) / 100;
   // reserve: слайд вписывается в остаток над полосой. overlay: полоса лежит
   // поверх, слайд занимает всё окно (§6). side: полосы нет вовсе.
   const areaH = state.captions.layout === 'reserve' ? size.h - bandHeight : size.h;
@@ -165,7 +165,7 @@ export default function PresentPage() {
         <CaptionColumn history={state.captionHistory} settings={state.captions} width={sideWidth} />
       ) : (
         <CaptionBand
-          line={state.captions.visible ? state.captionLine : null}
+          line={state.captionLine}
           settings={state.captions}
           height={(size.h * state.captions.bandHeight) / 100}
         />
