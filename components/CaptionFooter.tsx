@@ -49,24 +49,34 @@ export function CaptionFooter() {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => void (timer.current && clearTimeout(timer.current)), []);
 
+  // После перезагрузки живой строки нет — падаем на последнюю запись
+  // восстановленного лога, иначе полоса пустует до первой новой реплики.
+  const finals = entries.filter((e) => e.isFinal);
+  const last = finals[finals.length - 1];
+  /** Настоящий субтитр, без образца. */
+  const real = captionLine?.text ?? (last && pickText(last.texts, subtitlePrefs(profile, last.speaker)));
+
   const resize = (delta: number) => {
     const next = Math.min(CAPTIONS.FONT_MAX, Math.max(CAPTIONS.FONT_MIN, captions.fontSize + delta));
     setCaptions({ fontSize: next });
+    // Образец нужен, только когда мерить нечем. Если субтитр есть, размер
+    // подбирают ПО НЕМУ, и подменять его выдуманной строкой значит прятать
+    // ровно то, ради чего кегль и меняют.
+    if (real) return;
     setSample(SAMPLE_SUBTITLE[captionLangOf(profile)]);
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => setSample(null), CAPTIONS.SAMPLE_MS);
   };
 
-  // После перезагрузки живой строки нет — падаем на последнюю запись
-  // восстановленного лога, иначе полоса пустует до первой новой реплики.
-  const finals = entries.filter((e) => e.isFinal);
-  const last = finals[finals.length - 1];
-  const big = sample ?? captionLine?.text ?? (last && pickText(last.texts, subtitlePrefs(profile, last.speaker)));
+  // Настоящая реплика вытесняет образец и до истечения его срока: она
+  // пришла, значит мерить уже есть по чему.
+  const showSample = !real && sample !== null;
+  const big = real ?? sample;
 
   // Дублировать перевод оригиналом незачем: когда говорили уже на языке
   // показа, обе строки совпали бы.
   const heard = last && last.origText !== big ? last.origText : null;
-  const fromRoom = !sample && (captionLine?.speaker ?? last?.speaker) === 'audience';
+  const fromRoom = !showSample && (captionLine?.speaker ?? last?.speaker) === 'audience';
 
   return (
     <footer
@@ -93,7 +103,7 @@ export function CaptionFooter() {
       </div>
 
       <p className="max-w-[90%] truncate text-center text-[13px] uppercase tracking-wide text-dim">
-        {sample ? '' : (partial ?? heard ?? '')}
+        {showSample ? '' : (partial ?? heard ?? '')}
       </p>
       <p
         className="line-clamp-2 text-center font-semibold leading-tight"
@@ -101,7 +111,7 @@ export function CaptionFooter() {
           fontSize: captions.fontSize,
           textWrap: 'balance',
           color: fromRoom ? 'var(--warn)' : undefined,
-          opacity: sample ? 0.75 : 1,
+          opacity: showSample ? 0.75 : 1,
         }}
       >
         {big ?? <span className="text-[16px] font-normal text-dim">{t('nothingYet')}</span>}

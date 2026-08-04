@@ -49,8 +49,17 @@ export type Utterance = {
   origText: string;
   /** Версии для стенограмм. Ключ, равный origLang, дублирует origText. */
   texts: Partial<Record<Lang, string>>;
+  /** Место реплики в докладе — от старта КАНАЛА. Годится для лога и
+   *  выгрузки, но не для «насколько это свежо»: у каждого канала свой
+   *  ноль, и с performance.now() эту величину сравнивать нельзя. */
   offsetMs: number;
   durationMs?: number;
+  /**
+   * Когда реплика ушла на распознавание, по часам страницы. Отдельно от
+   * offsetMs именно потому, что нужен ОБЩИЙ ноль: свежесть считается
+   * вычитанием из performance.now(), а offsetMs для этого не годится.
+   */
+  sentAt?: number;
   confidence?: number;
 };
 

@@ -273,6 +273,9 @@ export class GeminiChunkProvider implements SpeechProvider {
 
     const id = uid('g');
     const offsetMs = Math.round(performance.now() - this.t0);
+    // Момент отправки по часам страницы. Дальше идёт круг до Gemini, и
+    // только по этой отметке видно, сколько реплика пролежала в пути.
+    const sentAt = performance.now();
     const sources = this.pinned ? [this.pinned] : opts.sourceLang;
 
     try {
@@ -343,7 +346,7 @@ export class GeminiChunkProvider implements SpeechProvider {
         if (typeof v === 'string' && v.trim()) texts[to] = v.trim();
       }
 
-      const u: Utterance = { id, origLang: detected, origText: text, texts, offsetMs, durationMs };
+      const u: Utterance = { id, origLang: detected, origText: text, texts, offsetMs, durationMs, sentAt };
       opts.onFinal(u);
     } catch (e) {
       opts.onError(e instanceof Error ? e : new Error(String(e)));

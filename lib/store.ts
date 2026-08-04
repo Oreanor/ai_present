@@ -307,7 +307,14 @@ export const useStore = create<State>((set, get) => ({
 
     if (allowed && captionText) {
       // Реплика зала старше 15 секунд уже неактуальна и только собьёт зал (§9).
-      const stale = speaker === 'audience' && u.durationMs !== undefined && performance.now() - u.offsetMs > CAPTIONS.MAX_AUDIENCE_AGE_MS;
+      // Считаем от sentAt — он по часам страницы, как и performance.now().
+      // Раньше здесь стоял offsetMs, а он от старта КАНАЛА: разность давала
+      // не возраст реплики, а момент запуска канала, и стоило запустить его
+      // позже 15-й секунды после загрузки — стухало всё и навсегда.
+      const stale =
+        speaker === 'audience' &&
+        u.sentAt !== undefined &&
+        performance.now() - u.sentAt > CAPTIONS.MAX_AUDIENCE_AGE_MS;
       if (!stale) line = { text: captionText, final: true, speaker, orig: u.origText === captionText ? '' : u.origText, at: performance.now() };
     }
 
