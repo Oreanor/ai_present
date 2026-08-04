@@ -101,6 +101,7 @@ const DICT = {
   me: { en: 'me', pt: 'eu' },
   room: { en: 'room', pt: 'sala' },
   readIn: { en: 'Read in', pt: 'Ler em' },
+  hasOwnSlides: { en: 'has its own slides', pt: 'tem diapositivos próprios' },
   sectionControl: { en: 'Control', pt: 'Controlo' },
   sectionSubtitles: { en: 'Subtitles', pt: 'Legendas' },
   sectionLog: { en: 'Log', pt: 'Registo' },

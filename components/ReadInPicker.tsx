@@ -3,7 +3,7 @@
 import { useShallow } from 'zustand/react/shallow';
 import { transcriptLangs } from '@/lib/profile';
 import { shownLang, useStore } from '@/lib/store';
-import { ALL_LANGS } from '@/lib/types';
+import { ALL_LANGS, type Lang } from '@/lib/types';
 import { useT } from '@/lib/ui-prefs';
 
 /**
@@ -18,10 +18,11 @@ import { useT } from '@/lib/ui-prefs';
  * отсюда счётчик прогресса и блокировка на время перевода.
  */
 export function ReadInPicker() {
-  const { profile, viewLang, translating, setViewLang } = useStore(
+  const { profile, viewLang, deckLangs, translating, setViewLang } = useStore(
     useShallow((s) => ({
       profile: s.profile,
       viewLang: s.viewLang,
+      deckLangs: s.deckLangs,
       translating: s.translating,
       setViewLang: s.setViewLang,
     })),
@@ -30,6 +31,10 @@ export function ReadInPicker() {
 
   const kept = transcriptLangs(profile);
   const shown = shownLang({ viewLang, profile });
+  // Точка означает, что у этого языка есть своя версия слайдов. Без неё
+  // переключение меняет только текст, а слайд остаётся основным — и
+  // понять, почему он не сменился, было неоткуда.
+  const ownSlides = (l: Lang) => deckLangs.length > 1 && deckLangs.includes(l);
 
   return (
     <div className="flex min-w-0 items-center gap-1">
@@ -40,9 +45,10 @@ export function ReadInPicker() {
           onClick={() => void setViewLang(l)}
           disabled={!!translating}
           className={`btn btn-sm font-semibold uppercase ${shown === l ? 'btn-on' : ''}`}
-          title={kept.includes(l) ? t('hintKeptIn') : t('hintTranslateAll')}
+          title={`${kept.includes(l) ? t('hintKeptIn') : t('hintTranslateAll')}${ownSlides(l) ? ` · ${t('hasOwnSlides')}` : ''}`}
         >
           {l}
+          {ownSlides(l) ? <span className="ml-1 align-middle text-[7px] opacity-70">●</span> : null}
         </button>
       ))}
       {translating ? (

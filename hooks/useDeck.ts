@@ -64,7 +64,7 @@ export function useDeck() {
         setVariants(built);
         setPrimary(files[0].lang);
 
-        st.setDeck(id, base.deck.pageCount, base.deck.aspect);
+        st.setDeck(id, base.deck.pageCount, base.deck.aspect, Object.keys(built) as Lang[]);
         for (const w of base.deck.warnings) st.toast_(w.text, 'warn');
 
         // Компоновка субтитров выводится из формы колоды: узкая оставляет

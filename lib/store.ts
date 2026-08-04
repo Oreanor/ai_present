@@ -44,6 +44,9 @@ type State = {
   slideCount: number;
   deckAspect: number;
   docId: string;
+  /** Языки, для которых у колоды есть свой файл. Пустой список — колода
+   *  одна на все языки, и переключение языка её не меняет. */
+  deckLangs: Lang[];
 
   annotations: Annotations;
   shapeKind: ShapeKind;
@@ -69,7 +72,7 @@ type State = {
   setCaptions(patch: Partial<CaptionSettings>): void;
   setGlossary(g: GlossaryEntry[]): void;
 
-  setDeck(docId: string, count: number, aspect: number): void;
+  setDeck(docId: string, count: number, aspect: number, langs: Lang[]): void;
   goto(index: number): void;
   move(delta: number): void;
 
@@ -106,6 +109,7 @@ export const useStore = create<State>((set, get) => ({
   slideCount: 0,
   deckAspect: 16 / 9,
   docId: '',
+  deckLangs: [],
 
   annotations: {},
   shapeKind: 'rect',
@@ -137,8 +141,9 @@ export const useStore = create<State>((set, get) => ({
     set({ glossary: g });
   },
 
-  setDeck(docId, count, aspect) {
+  setDeck(docId, count, aspect, langs) {
     set({
+      deckLangs: langs,
       docId,
       slideCount: count,
       deckAspect: aspect,
