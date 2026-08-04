@@ -57,7 +57,7 @@ export function useChannels(terms: RefObject<string[]>) {
 
       // Звук встречи Web Speech принять не может — только поток захвата,
       // и только через провайдера, который умеет с потоком работать.
-      if (!isPresenter && id !== 'mock') {
+      if (!isPresenter) {
         const stream = await grabRoomAudio();
         if (!stream) return;
         source = { kind: 'stream', stream };

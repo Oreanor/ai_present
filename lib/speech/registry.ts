@@ -1,10 +1,9 @@
 import type { LangMode, MeetingProfile, Speaker } from '../types';
 import { FreeProvider, webSpeechSupported } from './free-provider';
 import { GeminiChunkProvider } from './gemini-provider';
-import { MockProvider } from './mock-provider';
 import type { SpeechProvider } from './types';
 
-export type ProviderId = 'free' | 'gemini' | 'mock';
+export type ProviderId = 'free' | 'gemini';
 
 export function createProvider(id: ProviderId): SpeechProvider {
   switch (id) {
@@ -12,8 +11,6 @@ export function createProvider(id: ProviderId): SpeechProvider {
       return new FreeProvider();
     case 'gemini':
       return new GeminiChunkProvider();
-    case 'mock':
-      return new MockProvider();
   }
 }
 
