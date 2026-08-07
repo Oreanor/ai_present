@@ -143,7 +143,6 @@ const DICT = {
   keyboard: { en: 'Keyboard', pt: 'Teclado' },
   packs: { en: 'Translation packs — one click each', pt: 'Pacotes de tradução — um clique cada' },
   download: { en: 'Download', pt: 'Descarregar' },
-  requestsUsed: { en: 'Gemini requests used', pt: 'Pedidos Gemini usados' },
   enterFullscreen: {
     en: 'Slide full screen — subtitles appear over it and fade away',
     pt: 'Diapositivo em ecrã inteiro — as legendas surgem por cima e desaparecem',

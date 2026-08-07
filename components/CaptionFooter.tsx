@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { CAPTIONS, LAYOUT } from '@/lib/constants';
-import { captionLangOf, pickText, subtitlePrefs } from '@/lib/profile';
+import { captionLangOf, subtitleText } from '@/lib/profile';
 import { useStore } from '@/lib/store';
 import { SAMPLE_SUBTITLE } from '@/lib/types';
 import { useT } from '@/lib/ui-prefs';
@@ -54,7 +54,7 @@ export function CaptionFooter() {
   const finals = entries.filter((e) => e.isFinal);
   const last = finals[finals.length - 1];
   /** Настоящий субтитр, без образца. */
-  const real = captionLine?.text ?? (last && pickText(last.texts, subtitlePrefs(profile, last.speaker)));
+  const real = captionLine?.text ?? (last && subtitleText(profile, last));
 
   const resize = (delta: number) => {
     const next = Math.min(CAPTIONS.FONT_MAX, Math.max(CAPTIONS.FONT_MIN, captions.fontSize + delta));

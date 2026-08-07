@@ -308,7 +308,9 @@ export default function ControlPage() {
               <EdgeNav side="right" onClick={() => s.move(1)} disabled={s.slideIndex >= s.slideCount - 1} />
               <FullscreenButton rect={rect} full={full} onToggle={toggleFull} />
               {s.apology ? <ApologyOverlay rect={rect} lang={s.apology} /> : null}
-              <div className="pointer-events-none absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full bg-black/60 px-2.5 py-0.5 font-mono text-[11px] text-white/60">
+              {/* Номер слайда ведущий ловит боковым зрением, не вчитываясь:
+                  на одиннадцати пикселях это не читалось вовсе. */}
+              <div className="pointer-events-none absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full bg-black/65 px-3 py-1 font-mono text-[17px] leading-none tabular-nums text-white/75">
                 {s.slideIndex + 1} / {s.slideCount}
               </div>
             </>
@@ -385,8 +387,6 @@ export default function ControlPage() {
                     onClose={() => setMenu(false)}
                     theme={theme}
                     uiLang={uiLang}
-                    used={used}
-                    geminiInUse={geminiInUse}
                     onOpenWizard={() => setWizard(true)}
                   />
                 ) : null}

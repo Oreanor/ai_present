@@ -58,15 +58,50 @@ export function presenterLangOf(pr: MeetingProfile): Lang {
  * стенограммы, и тогда перевода на него просто нет — падаем на язык
  * стенограммы, а не показываем пустую полосу.
  */
-export function subtitlePrefs(pr: MeetingProfile, speaker: Speaker): Lang[] {
+export function subtitlePrefs(pr: MeetingProfile, speaker: Speaker, origLang?: Lang): Lang[] {
+  if (origLang !== undefined && keepsOriginal(pr, speaker, origLang)) {
+    return [...new Set([origLang, ...transcriptLangs(pr)])];
+  }
   const want = speaker === 'presenter' ? captionLangOf(pr) : presenterLangOf(pr);
   return [...new Set([want, ...transcriptLangs(pr)])];
+}
+
+/**
+ * Реплика зала на языке, которым ведущий владеет, идёт в полосу КАК СКАЗАНА.
+ *
+ * Переводить её незачем и вредно. Перевод приезжает позже — а вопрос из
+ * зала нужен ведущему в ту секунду, когда он задан. И он подменяет точную
+ * формулировку пересказом: ответить на вопрос, который тебе перевели с
+ * языка, который ты и так понимаешь, — значит отвечать не на него.
+ *
+ * Понимание считаем по presenterLangs, а не по приколотому языку: ведущий
+ * приколол один язык, чтобы на нём ГОВОРИТЬ, но читает он их все.
+ */
+export function keepsOriginal(pr: MeetingProfile, speaker: Speaker, origLang: Lang): boolean {
+  return speaker === 'audience' && pr.presenterLangs.includes(origLang);
 }
 
 /** Первый доступный перевод из списка предпочтений. */
 export function pickText(texts: Partial<Record<Lang, string>>, prefs: Lang[]): string | undefined {
   for (const l of prefs) if (texts[l]) return texts[l];
   return undefined;
+}
+
+/**
+ * Что показать в полосе для этой реплики.
+ *
+ * Отдельно от pickText из-за одного случая: язык оригинала может не входить
+ * в стенограммы (ведущий владеет тремя языками, а ведутся две), и тогда в
+ * texts его просто нет. Голый pickText молча упал бы на перевод — ровно
+ * там, где оригинал и требовался.
+ */
+export function subtitleText(
+  pr: MeetingProfile,
+  e: { speaker: Speaker; origLang: Lang; origText: string; texts: Partial<Record<Lang, string>> },
+): string | undefined {
+  const prefs = subtitlePrefs(pr, e.speaker, e.origLang);
+  if (prefs[0] === e.origLang) return e.texts[e.origLang] ?? e.origText;
+  return pickText(e.texts, prefs);
 }
 
 /**

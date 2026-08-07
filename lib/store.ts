@@ -17,7 +17,7 @@ import {
   type Utterance,
 } from './types';
 import { CAPTIONS, SIDE_COLUMN } from './constants';
-import { DEFAULT_PROFILE, captionLangOf, modeCycle, nextMode, pickText, subtitlePrefs, targetsFor, transcriptLangs } from './profile';
+import { DEFAULT_PROFILE, captionLangOf, modeCycle, nextMode, subtitlePrefs, subtitleText, targetsFor, transcriptLangs } from './profile';
 import { applyGlossary, type GlossaryEntry } from './glossary';
 import { translate } from './speech/translator';
 import { PALETTE, nextShapeKind } from './shapes';
@@ -310,11 +310,14 @@ export const useStore = create<State>((set, get) => ({
     // Субтитр обращён к ДРУГОЙ стороне: сказанное ведущим зал читает на
     // своём языке, вопрос из зала ведущий читает на своём. Язык чтения
     // ленты сюда не вмешивается — им листают лог, а не следят за речью.
-    const sub = subtitlePrefs(profile, speaker);
-    const captionText = pickText(texts, sub);
+    // Исключение — язык, которым ведущий владеет: такая реплика зала идёт
+    // как сказана (см. keepsOriginal). Раньше она в полосу не выводилась
+    // вовсе — «ведущий и так понял». Но полоса расшарена, и её молчание
+    // читается как отказ техники: зал не видит, расслышан ли вопрос,
+    // а ведущий теряет точную формулировку.
+    const captionText = subtitleText(profile, entry);
     let line = get().captionLine;
-    const roomAlreadyClear = speaker === 'audience' && u.origLang === sub[0];
-    const allowed = speaker === 'presenter' || (captions.showAudience && !roomAlreadyClear);
+    const allowed = speaker === 'presenter' || captions.showAudience;
 
     if (allowed && captionText) {
       // Реплика зала старше 15 секунд уже неактуальна и только собьёт зал (§9).
@@ -355,10 +358,11 @@ export const useStore = create<State>((set, get) => ({
 
     // Догоняющий перевод дорисовывает полосу, если ждали именно его.
     let line = get().captionLine;
-    if (lang === subtitlePrefs(get().profile, next[i].speaker)[0]) {
+    // Реплику, которая уже показана как сказана, догоняющий перевод не
+    // трогает: для неё sub[0] — язык оригинала, и совпадения не будет.
+    if (lang === subtitlePrefs(get().profile, next[i].speaker, next[i].origLang)[0]) {
       const e = next[i];
-      const allowed =
-        e.speaker === 'presenter' || (get().captions.showAudience && e.origLang !== lang);
+      const allowed = e.speaker === 'presenter' || get().captions.showAudience;
       if (allowed) line = { text: value, final: e.isFinal, speaker: e.speaker, orig: e.origText === value ? '' : e.origText, at: performance.now() };
     }
 
@@ -476,9 +480,11 @@ export const useStore = create<State>((set, get) => ({
     const s = get();
     const cl = captionLangOf(s.profile);
 
-    // История для боковой колонки. Собирается ровно по тем же правилам,
-    // что и полоса (§9): только captionLang, реплики зала на этом же
-    // языке не дублируются. Ничего приватного сюда не просачивается.
+    // История для боковой колонки — ТОЛЬКО captionLang: её читает зал, и
+    // реплики зала на его же языке не дублируются. Полоса живёт по другому
+    // правилу (см. keepsOriginal): она обращена к ведущему и может показать
+    // вопрос как сказан. Колонка — не может, чужой язык туда не попадает.
+    // Ничего приватного сюда не просачивается.
     const history = s.entries
       .filter((e) => {
         if (!e.isFinal || !e.texts[cl]) return false;

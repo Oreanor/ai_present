@@ -21,6 +21,15 @@
   --err: #f26d6d;
   --bubble-mine: rgb(106 168 255 / 0.18);
   --bubble-room: rgb(255 255 255 / 0.07);
+  /* Подсветка под курсором. Задаётся токеном, а не числом по месту: она
+     обязана быть заметной в обеих темах, а «заметно» на чёрном и на белом
+     это разные доли. Строится от --fg, поэтому сама поворачивается в
+     нужную сторону — на тёмном осветляет, на светлом затемняет. */
+  --hover: color-mix(in srgb, var(--fg) 7%, transparent);
+  /* Наведение на ЗАЛИТУЮ цветом кнопку. На тёмном фоне её осветляют,
+     на светлом — затемняют: осветление светлой заливки уводит её к белому
+     и роняет контраст белой надписи на ней. */
+  --filled-hover: brightness(1.12);
   /* Поле вокруг слайда. Не чёрный провал: чёрное поле читается как дыра,
      а колода в него не вписана, а вброшена. Градиент чёрно-сине-серый и
      ненасыщенный — колоды бывают любые, и фон не должен ни спорить с
@@ -31,16 +40,26 @@
 :root[data-theme='light'] {
   --ink: #f7f8fa;
   --panel: #ffffff;
-  --line: #dfe3ea;
+  --line: #cbd2dd;
   --fg: #171a20;
   --dim: #626b7c;
   --accent: #2563eb;
   --on-accent: #ffffff;
-  --ok: #0f9d63;
-  --warn: #b07709;
-  --err: #d13b38;
+  /* Затемнены против исходных до контраста 4.6 на фоне страницы. Прежние
+     давали 3.3–3.6: белая надпись на зелёной кнопке «Start listening» и
+     мелкие «✓ / ✕» в мастере читались через силу. Тон и насыщенность
+     сохранены — цвета те же, доведены до порога. Контраст симметричен,
+     поэтому одно значение годится и цветному тексту на белом, и белому
+     тексту на цветной заливке. */
+  --ok: #0c8151;
+  --warn: #986708;
+  --err: #d03734;
   --bubble-mine: rgb(37 99 235 / 0.12);
   --bubble-room: rgb(23 26 32 / 0.06);
+  /* На белом мелкая разница читается хуже, чем на чёрном, поэтому доля
+     чуть больше тёмной. */
+  --hover: color-mix(in srgb, var(--fg) 9%, transparent);
+  --filled-hover: brightness(0.92);
   /* Поле остаётся тёмным и в светлой теме: оно обрамляет полиграфию,
      а светлые поля вокруг белого слайда с ним сливаются. */
   --slide-bg: linear-gradient(160deg, #232a36 0%, #1a1f29 45%, #262f3f 100%);
@@ -121,7 +140,7 @@ summary {
            px-3 py-1.5 text-xs transition-colors;
   }
   .btn:hover:not(:disabled) {
-    background: color-mix(in srgb, var(--fg) 7%, transparent);
+    background: var(--hover);
   }
   .btn:disabled {
     @apply cursor-default opacity-40;
@@ -158,19 +177,19 @@ summary {
      вместе с текстом — выглядело как исчезнувшая кнопка. */
   .btn-primary:hover:not(:disabled) {
     background: var(--accent);
-    filter: brightness(1.1);
+    filter: var(--filled-hover);
   }
   .btn-go:hover:not(:disabled) {
     background: var(--ok);
-    filter: brightness(1.1);
+    filter: var(--filled-hover);
   }
   .btn-alarm:hover:not(:disabled) {
     background: var(--err);
-    filter: brightness(1.1);
+    filter: var(--filled-hover);
   }
   .btn-on:hover:not(:disabled) {
     background: var(--accent);
-    filter: brightness(1.1);
+    filter: var(--filled-hover);
   }
 
   /* Компактный вариант для плотных мест: палитра, выбор языка. */
@@ -185,7 +204,7 @@ summary {
     @apply flex min-w-0 flex-1 items-center gap-1.5 rounded border border-line px-2 py-1 leading-none;
   }
   .channel:hover:not(:disabled) {
-    background: color-mix(in srgb, var(--fg) 7%, transparent);
+    background: var(--hover);
   }
   .channel:disabled {
     @apply cursor-default;
@@ -216,21 +235,45 @@ summary {
       0 18px 50px -12px rgb(0 0 0 / 0.75);
   }
 
+  /* Слайды лежат стопкой, а не заменяют друг друга: на время перехода их
+     в кадре два, уходящий поверх приходящего (см. swapIn в SlideCanvas). */
+  .slide-frame > canvas {
+    position: absolute;
+    inset: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
   /* --- меню --- */
 
+  /* Высота ограничена окном, а не содержимым: раскрыть можно сколько
+     угодно разделов сразу, и меню обязано остаться в экране. */
   .menu {
-    @apply absolute right-0 top-9 z-20 w-72 rounded-lg border border-line p-2 shadow-2xl;
+    @apply absolute right-0 top-9 z-20 w-72 overflow-y-auto rounded-lg border border-line p-2 shadow-2xl;
+    max-height: calc(100vh - 4.5rem);
     background: var(--panel);
   }
   .menu-item {
     @apply w-full rounded px-2 py-1.5 text-left text-xs;
   }
   .menu-item:hover {
-    background: color-mix(in srgb, var(--fg) 7%, transparent);
+    background: var(--hover);
   }
-  .menu-label {
-    @apply px-2 pb-1 text-[10px] uppercase tracking-wide;
+  /* Заголовок раздела — он же кнопка сворачивания. Во всю ширину: целиться
+     в десятипиксельный шеврон мышью на ходу невозможно. */
+  .menu-head {
+    @apply flex w-full items-center justify-between gap-2 px-2 py-1 text-[10px] uppercase tracking-wide;
     color: var(--dim);
+  }
+  .menu-head:hover {
+    color: var(--fg);
+  }
+  .menu-chevron {
+    @apply shrink-0 text-[13px] leading-none transition-transform duration-150;
+  }
+  .menu-head[aria-expanded='true'] .menu-chevron {
+    transform: rotate(90deg);
   }
   .menu-group {
     @apply mb-2 border-b border-line pb-2;
@@ -252,8 +295,14 @@ summary {
     @apply rounded-bl-md;
     background: var(--bubble-room);
   }
+  /* Наведение накладывает вуаль из --fg, а не осветляет. brightness(1.15)
+     на светлой теме гнал и без того светлый пузырь В БЕЛЫЙ — наведение
+     не подсвечивало его, а стирало, сливая с панелью. Вуаль строится от
+     --fg и потому сама поворачивается: на тёмном светлее, на светлом
+     темнее. Тень внутренняя с огромным разлётом — это заливка поверх,
+     фоновое свойство у пузырей уже занято цветом стороны. */
   .bubble:hover {
-    filter: brightness(1.15);
+    box-shadow: inset 0 0 0 999px var(--hover);
   }
   .bubble-meta {
     @apply mt-0.5 flex items-center gap-1.5 px-1 text-[10px];
